@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Youtube, FileText, Sparkles, Copy, Download, Edit } from "lucide-react";
+import { Loader2, Send, PlayCircle, FileText, Sparkles, Copy, Download, Edit } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface Message {
@@ -24,6 +24,7 @@ interface Message {
 
 export default function DashboardPage() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -71,6 +72,10 @@ export default function DashboardPage() {
   };
 
   const handleSubmit = async () => {
+    console.log("Starting blog generation...");
+    console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);
+    console.log("User:", user?.id);
+    
     if (inputMode === "text" && !textPrompt.trim()) {
       toast({
         title: "Error",
@@ -102,14 +107,17 @@ export default function DashboardPage() {
 
     try {
       let response;
+      const token = await getToken();
+      console.log("Auth token:", token ? "Present" : "Missing");
       
       if (inputMode === "youtube") {
         // First, fetch transcript
+        console.log("Fetching YouTube transcript...");
         const transcriptRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/youtube/transcript`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${await user?.getToken()}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ url: youtubeUrl }),
         });
@@ -137,11 +145,12 @@ export default function DashboardPage() {
         });
       } else {
         // Generate blog from text prompt
+        console.log("Generating blog from text prompt...");
         response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/prompts`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${await user?.getToken()}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             type: "text",
@@ -149,6 +158,8 @@ export default function DashboardPage() {
           }),
         });
       }
+      
+      console.log("Response status:", response.status);
 
       if (!response.ok) {
         const error = await response.json();
@@ -180,6 +191,7 @@ export default function DashboardPage() {
         description: "Blog generated successfully!",
       });
     } catch (error: any) {
+      console.error("Error generating blog:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to generate blog",
@@ -319,7 +331,7 @@ export default function DashboardPage() {
                   Text Prompt
                 </TabsTrigger>
                 <TabsTrigger value="youtube">
-                  <Youtube className="w-4 h-4 mr-2" />
+                  <PlayCircle className="w-4 h-4 mr-2" />
                   YouTube Video
                 </TabsTrigger>
               </TabsList>

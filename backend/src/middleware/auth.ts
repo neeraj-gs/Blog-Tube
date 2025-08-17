@@ -1,15 +1,22 @@
 import { Request, Response, NextFunction } from 'express';
-import { ClerkExpressRequireAuth } from '@clerk/clerk-sdk-node';
+import { requireAuth } from '@clerk/express';
 import User from '../models/User';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export interface AuthRequest extends Request {
   auth?: {
     userId?: string;
+    sessionId?: string;
   };
   user?: any;
 }
 
-export const clerkMiddleware = ClerkExpressRequireAuth();
+export const clerkMiddleware = requireAuth({
+  publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+  secretKey: process.env.CLERK_SECRET_KEY
+});
 
 export const attachUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {

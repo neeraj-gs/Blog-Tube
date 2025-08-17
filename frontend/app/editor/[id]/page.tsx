@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
 import dynamic from "next/dynamic";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,6 +62,7 @@ export default function EditorPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useUser();
+  const { getToken } = useAuth();
   const { toast } = useToast();
   
   const [blog, setBlog] = useState<Blog | null>(null);
@@ -87,7 +88,7 @@ export default function EditorPage() {
         `${process.env.NEXT_PUBLIC_API_URL}/blogs/${params.id}`,
         {
           headers: {
-            Authorization: `Bearer ${await user?.getToken()}`,
+            Authorization: `Bearer ${await getToken()}`,
           },
         }
       );
@@ -123,7 +124,7 @@ export default function EditorPage() {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${await user?.getToken()}`,
+            Authorization: `Bearer ${await getToken()}`,
           },
           body: JSON.stringify({
             title,
@@ -166,7 +167,7 @@ export default function EditorPage() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${await user?.getToken()}`,
+            Authorization: `Bearer ${await getToken()}`,
           },
           body: JSON.stringify({ publish: true }),
         }

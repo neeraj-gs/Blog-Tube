@@ -3,8 +3,14 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { clerkMiddleware } from './middleware/auth';
+import { clerkClient } from '@clerk/express';
 
 dotenv.config();
+
+// Initialize Clerk with secret key
+if (!process.env.CLERK_SECRET_KEY) {
+  console.error('CLERK_SECRET_KEY is not set');
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;

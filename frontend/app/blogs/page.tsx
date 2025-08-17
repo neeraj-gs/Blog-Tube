@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,7 @@ interface Blog {
 
 export default function BlogsPage() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   
@@ -103,7 +104,7 @@ export default function BlogsPage() {
         `${process.env.NEXT_PUBLIC_API_URL}/blogs?${params}`,
         {
           headers: {
-            Authorization: `Bearer ${await user?.getToken()}`,
+            Authorization: `Bearer ${await getToken()}`,
           },
         }
       );
@@ -152,7 +153,7 @@ export default function BlogsPage() {
         {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${await user?.getToken()}`,
+            Authorization: `Bearer ${await getToken()}`,
           },
         }
       );
@@ -187,7 +188,7 @@ export default function BlogsPage() {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${await user?.getToken()}`,
+            Authorization: `Bearer ${await getToken()}`,
           },
           body: JSON.stringify({
             ...blog,
