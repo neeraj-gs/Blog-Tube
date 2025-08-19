@@ -1,0 +1,150 @@
+{
+  "commands": [
+    {
+      "name": "analyze-issue",
+      "description": "Analyze a GitHub issue and determine which agent should handle it",
+      "script": "cd automation && tsx orchestrator.ts",
+      "env": {
+        "ISSUE_TITLE": "{title}",
+        "ISSUE_BODY": "{body}",
+        "ISSUE_NUMBER": "{number}"
+      },
+      "parameters": {
+        "title": {
+          "type": "string",
+          "description": "Issue title",
+          "required": true
+        },
+        "body": {
+          "type": "string", 
+          "description": "Issue body/description",
+          "required": true
+        },
+        "number": {
+          "type": "string",
+          "description": "Issue number",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "run-frontend-agent",
+      "description": "Execute the frontend agent to implement UI/React changes",
+      "script": "cd automation && tsx run-agent.ts",
+      "env": {
+        "AGENT_TYPE": "frontend",
+        "ISSUE_NUMBER": "{issueNumber}",
+        "IMPLEMENTATION_PLAN": "{plan}"
+      },
+      "parameters": {
+        "issueNumber": {
+          "type": "string",
+          "description": "GitHub issue number",
+          "required": true
+        },
+        "plan": {
+          "type": "string",
+          "description": "Implementation plan (base64 encoded)",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "run-backend-agent", 
+      "description": "Execute the backend agent to implement API/server changes",
+      "script": "cd automation && tsx run-agent.ts",
+      "env": {
+        "AGENT_TYPE": "backend",
+        "ISSUE_NUMBER": "{issueNumber}",
+        "IMPLEMENTATION_PLAN": "{plan}"
+      },
+      "parameters": {
+        "issueNumber": {
+          "type": "string",
+          "description": "GitHub issue number",
+          "required": true
+        },
+        "plan": {
+          "type": "string", 
+          "description": "Implementation plan (base64 encoded)",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "run-database-agent",
+      "description": "Execute the database agent to implement schema/data changes",
+      "script": "cd automation && tsx run-agent.ts", 
+      "env": {
+        "AGENT_TYPE": "database",
+        "ISSUE_NUMBER": "{issueNumber}",
+        "IMPLEMENTATION_PLAN": "{plan}"
+      },
+      "parameters": {
+        "issueNumber": {
+          "type": "string",
+          "description": "GitHub issue number", 
+          "required": true
+        },
+        "plan": {
+          "type": "string",
+          "description": "Implementation plan (base64 encoded)",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "create-pr",
+      "description": "Create a pull request for the current changes",
+      "script": "cd automation && tsx create-pr.ts",
+      "env": {
+        "ISSUE_NUMBER": "{issueNumber}"
+      },
+      "parameters": {
+        "issueNumber": {
+          "type": "string",
+          "description": "GitHub issue number",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "test-automation",
+      "description": "Test the automation system with a sample issue",
+      "script": "cd automation && npm test",
+      "env": {}
+    },
+    {
+      "name": "setup-automation",
+      "description": "Install automation dependencies and setup the system",
+      "script": "cd automation && npm install && echo 'Automation system ready!'",
+      "env": {}
+    },
+    {
+      "name": "check-logs",
+      "description": "View recent automation logs",
+      "script": "cd automation && tail -n 50 logs/*.log || echo 'No logs found'",
+      "env": {}
+    },
+    {
+      "name": "deploy-frontend",
+      "description": "Deploy frontend to production",
+      "script": "cd frontend && npm run build && echo 'Frontend built successfully'",
+      "env": {}
+    },
+    {
+      "name": "deploy-backend", 
+      "description": "Deploy backend to production",
+      "script": "cd backend && npm run build && echo 'Backend built successfully'",
+      "env": {}
+    },
+    {
+      "name": "full-automation-test",
+      "description": "Run a complete automation test cycle",
+      "script": "automation/scripts/test-full-cycle.sh",
+      "env": {
+        "TEST_MODE": "true"
+      }
+    }
+  ]
+}

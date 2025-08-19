@@ -1,0 +1,149 @@
+{
+  "agents": {
+    "frontend": {
+      "name": "Frontend Agent",
+      "description": "Handles React, Next.js, UI components, and styling",
+      "capabilities": [
+        "React component development",
+        "Next.js page creation and routing", 
+        "Tailwind CSS styling",
+        "ShadCN UI integration",
+        "TypeScript implementation",
+        "Responsive design",
+        "Accessibility improvements",
+        "Frontend performance optimization"
+      ],
+      "filePatterns": [
+        "frontend/app/**/*.tsx",
+        "frontend/app/**/*.ts", 
+        "frontend/components/**/*",
+        "frontend/lib/**/*",
+        "frontend/middleware.ts",
+        "frontend/*.config.*",
+        "frontend/package.json"
+      ],
+      "testCommand": "cd frontend && npm run build",
+      "maxComplexity": "moderate",
+      "autoImplementThreshold": 0.8
+    },
+    "backend": {
+      "name": "Backend Agent",
+      "description": "Handles Express.js APIs, middleware, and business logic",
+      "capabilities": [
+        "Express.js route development",
+        "API endpoint creation",
+        "Middleware implementation",
+        "Authentication and authorization",
+        "External API integration", 
+        "Error handling and validation",
+        "Performance optimization",
+        "Security best practices"
+      ],
+      "filePatterns": [
+        "backend/src/**/*.ts",
+        "backend/package.json",
+        "backend/.env.example"
+      ],
+      "testCommand": "cd backend && npm run build",
+      "maxComplexity": "complex",
+      "autoImplementThreshold": 0.7
+    },
+    "database": {
+      "name": "Database Agent", 
+      "description": "Handles MongoDB schemas, migrations, and data modeling",
+      "capabilities": [
+        "Mongoose schema design",
+        "Database relationship modeling",
+        "Index optimization",
+        "Data validation",
+        "Migration script creation",
+        "Query optimization",
+        "Data aggregation",
+        "Schema evolution"
+      ],
+      "filePatterns": [
+        "backend/src/models/**/*.ts",
+        "backend/src/migrations/**/*",
+        "backend/docs/**/*.md"
+      ],
+      "testCommand": "cd backend && npm run build",
+      "maxComplexity": "complex",
+      "autoImplementThreshold": 0.6
+    },
+    "devops": {
+      "name": "DevOps Agent",
+      "description": "Handles deployment, CI/CD, and infrastructure",
+      "capabilities": [
+        "GitHub Actions workflow creation",
+        "Docker containerization",
+        "Environment configuration",
+        "Monitoring setup",
+        "Performance optimization",
+        "Security scanning",
+        "Deployment automation",
+        "Infrastructure as code"
+      ],
+      "filePatterns": [
+        ".github/**/*",
+        "docker*",
+        "*.yml",
+        "*.yaml",
+        "automation/**/*"
+      ],
+      "testCommand": "echo 'DevOps validation passed'",
+      "maxComplexity": "complex", 
+      "autoImplementThreshold": 0.5
+    },
+    "documentation": {
+      "name": "Documentation Agent",
+      "description": "Handles README updates, API docs, and user guides",
+      "capabilities": [
+        "README.md maintenance",
+        "API documentation",
+        "User guide creation",
+        "Code commenting",
+        "Changelog management",
+        "Setup instructions",
+        "Troubleshooting guides",
+        "Best practices documentation"
+      ],
+      "filePatterns": [
+        "*.md",
+        "docs/**/*",
+        "**/README.md",
+        "CHANGELOG.md"
+      ],
+      "testCommand": "echo 'Documentation validation passed'",
+      "maxComplexity": "simple",
+      "autoImplementThreshold": 0.9
+    }
+  },
+  "orchestrator": {
+    "analysisPromptTemplate": "automation/config/analysis-prompt.txt",
+    "confidenceThreshold": 0.7,
+    "maxRetries": 2,
+    "timeoutMinutes": 30
+  },
+  "github": {
+    "defaultLabels": {
+      "aiGenerated": "ai-generated",
+      "needsReview": "needs-review", 
+      "autoImplement": "auto-implement",
+      "manualReview": "manual-review"
+    },
+    "prTemplate": "automation/config/pr-template.md",
+    "reviewers": {
+      "frontend": [],
+      "backend": [],
+      "database": ["@database-admin"],
+      "devops": ["@devops-team"],
+      "documentation": []
+    }
+  },
+  "monitoring": {
+    "logLevel": "info",
+    "metricsEnabled": true,
+    "alertsEnabled": true,
+    "webhookUrl": null
+  }
+}

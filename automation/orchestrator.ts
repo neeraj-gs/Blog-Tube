@@ -1,0 +1,277 @@
+#!/usr/bin/env tsx
+
+import { Anthropic } from '@anthropic-ai/sdk';
+import { Octokit } from '@octokit/rest';
+import * as fs from 'fs';
+import * as path from 'path';
+import { createLogger } from './utils/logger';
+
+interface IssueAnalysis {
+  agentType: 'frontend' | 'backend' | 'database' | 'devops' | 'documentation';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  complexity: 'simple' | 'moderate' | 'complex';
+  implementationPlan: string;
+  estimatedTimeHours: number;
+  shouldImplement: boolean;
+  reasoning: string;
+  requiredFiles: string[];
+  testingStrategy: string;
+}
+
+class OrchestratorAgent {
+  private anthropic: Anthropic;
+  private octokit: Octokit;
+  private logger = createLogger('orchestrator');
+
+  constructor() {
+    this.anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY!,
+    });
+
+    this.octokit = new Octokit({
+      auth: process.env.GITHUB_TOKEN,
+    });
+  }
+
+  async analyzeIssue(): Promise<IssueAnalysis> {
+    const issueTitle = process.env.ISSUE_TITLE!;
+    const issueBody = process.env.ISSUE_BODY!;
+    const issueLabels = JSON.parse(process.env.ISSUE_LABELS || '[]');
+    
+    this.logger.info(`Analyzing issue: ${issueTitle}`);
+
+    // Read project context
+    const claudeContext = fs.readFileSync(path.join(__dirname, '../CLAUDE.md'), 'utf-8');
+    
+    // Read recent codebase structure
+    const codebaseStructure = await this.getCodebaseStructure();
+    
+    const analysisPrompt = `
+You are the Main Orchestrator Agent for the BlogTube project - an AI-powered blog generation platform.
+
+## Project Context:
+${claudeContext}
+
+## Current Codebase Structure:
+${codebaseStructure}
+
+## GitHub Issue to Analyze:
+**Title:** ${issueTitle}
+**Body:** ${issueBody}
+**Labels:** ${issueLabels.map((l: any) => l.name).join(', ')}
+
+## Your Task:
+Analyze this GitHub issue and determine:
+
+1. **Agent Type**: Which specialized agent should handle this?
+   - frontend: UI/UX, React components, Next.js pages, styling
+   - backend: APIs, Express routes, database operations, business logic
+   - database: Schema changes, migrations, data modeling
+   - devops: Deployment, CI/CD, performance, infrastructure
+   - documentation: README updates, API docs, user guides
+
+2. **Implementation Assessment**: Should this be auto-implemented?
+   - Consider: complexity, risk, testing requirements, breaking changes
+   - Auto-implement: bug fixes, small features, documentation updates
+   - Manual review: major features, breaking changes, security issues
+
+3. **Implementation Plan**: Detailed step-by-step plan for the assigned agent
+
+4. **Risk Assessment**: Potential issues and mitigation strategies
+
+Respond with a JSON object matching this TypeScript interface:
+
+\`\`\`typescript
+interface IssueAnalysis {
+  agentType: 'frontend' | 'backend' | 'database' | 'devops' | 'documentation';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  complexity: 'simple' | 'moderate' | 'complex';
+  implementationPlan: string;
+  estimatedTimeHours: number;
+  shouldImplement: boolean;
+  reasoning: string;
+  requiredFiles: string[];
+  testingStrategy: string;
+}
+\`\`\`
+
+Be thorough but practical. Consider the project's current state and capabilities.
+`;
+
+    try {
+      const response = await this.anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 4000,
+        messages: [
+          {
+            role: 'user',
+            content: analysisPrompt
+          }
+        ]
+      });
+
+      const content = response.content[0];
+      if (content.type !== 'text') {
+        throw new Error('Unexpected response type from Claude');
+      }
+
+      // Extract JSON from response
+      const jsonMatch = content.text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (!jsonMatch) {
+        throw new Error('Could not extract JSON from Claude response');
+      }
+
+      const analysis: IssueAnalysis = JSON.parse(jsonMatch[1]);
+      this.logger.info(`Analysis complete: ${analysis.agentType} agent assigned`);
+      
+      return analysis;
+    } catch (error) {
+      this.logger.error('Error analyzing issue:', error);
+      throw error;
+    }
+  }
+
+  async updateIssueWithAnalysis(analysis: IssueAnalysis): Promise<void> {
+    const issueNumber = parseInt(process.env.ISSUE_NUMBER!);
+    const [owner, repo] = process.env.REPOSITORY_NAME!.split('/');
+
+    const comment = `🤖 **AI Analysis Complete**
+
+**Agent Assignment:** \`${analysis.agentType}\` agent
+**Priority:** ${analysis.priority.toUpperCase()}
+**Complexity:** ${analysis.complexity}
+**Estimated Time:** ${analysis.estimatedTimeHours} hours
+
+**Implementation Plan:**
+${analysis.implementationPlan}
+
+**Auto-Implementation:** ${analysis.shouldImplement ? '✅ Approved' : '❌ Requires manual review'}
+
+**Reasoning:** ${analysis.reasoning}
+
+**Required Files:**
+${analysis.requiredFiles.map(file => `- \`${file}\``).join('\n')}
+
+**Testing Strategy:**
+${analysis.testingStrategy}
+
+---
+*This analysis was generated by the BlogTube AI Orchestrator Agent*`;
+
+    await this.octokit.issues.createComment({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      body: comment
+    });
+
+    // Add labels based on analysis
+    const labels = [
+      `agent:${analysis.agentType}`,
+      `priority:${analysis.priority}`,
+      `complexity:${analysis.complexity}`,
+    ];
+
+    if (analysis.shouldImplement) {
+      labels.push('auto-implement');
+    } else {
+      labels.push('manual-review');
+    }
+
+    await this.octokit.issues.addLabels({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      labels
+    });
+
+    this.logger.info(`Updated issue #${issueNumber} with analysis`);
+  }
+
+  async setGitHubOutputs(analysis: IssueAnalysis): Promise<void> {
+    // Set outputs for GitHub Actions
+    const githubOutput = process.env.GITHUB_OUTPUT;
+    if (githubOutput) {
+      const outputs = [
+        `should-implement=${analysis.shouldImplement}`,
+        `agent-type=${analysis.agentType}`,
+        `priority=${analysis.priority}`,
+        `complexity=${analysis.complexity}`,
+        `implementation-plan=${Buffer.from(analysis.implementationPlan).toString('base64')}`
+      ];
+
+      fs.appendFileSync(githubOutput, outputs.join('\n') + '\n');
+    }
+  }
+
+  private async getCodebaseStructure(): Promise<string> {
+    const structure = [];
+    const directories = ['frontend/app', 'backend/src', 'automation'];
+    
+    for (const dir of directories) {
+      try {
+        const fullPath = path.join(__dirname, '..', dir);
+        if (fs.existsSync(fullPath)) {
+          structure.push(`\n## ${dir}/`);
+          const files = this.getFilesRecursively(fullPath, 2); // Max depth 2
+          structure.push(files.join('\n'));
+        }
+      } catch (error) {
+        this.logger.warn(`Could not read directory ${dir}:`, error);
+      }
+    }
+
+    return structure.join('\n');
+  }
+
+  private getFilesRecursively(dirPath: string, maxDepth: number, currentDepth = 0): string[] {
+    if (currentDepth >= maxDepth) return [];
+    
+    const files: string[] = [];
+    try {
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        if (entry.name.startsWith('.')) continue;
+        
+        const indent = '  '.repeat(currentDepth);
+        if (entry.isDirectory()) {
+          files.push(`${indent}${entry.name}/`);
+          const subFiles = this.getFilesRecursively(
+            path.join(dirPath, entry.name), 
+            maxDepth, 
+            currentDepth + 1
+          );
+          files.push(...subFiles);
+        } else {
+          files.push(`${indent}${entry.name}`);
+        }
+      }
+    } catch (error) {
+      // Ignore errors for individual files/directories
+    }
+    
+    return files;
+  }
+}
+
+// Main execution
+async function main() {
+  const orchestrator = new OrchestratorAgent();
+  
+  try {
+    const analysis = await orchestrator.analyzeIssue();
+    await orchestrator.updateIssueWithAnalysis(analysis);
+    await orchestrator.setGitHubOutputs(analysis);
+    
+    console.log('✅ Orchestrator analysis complete');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Orchestrator failed:', error);
+    process.exit(1);
+  }
+}
+
+if (require.main === module) {
+  main();
+}
