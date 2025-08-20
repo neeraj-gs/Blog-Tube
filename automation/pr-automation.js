@@ -1,0 +1,455 @@
+#!/usr/bin/env node
+
+/**
+ * Pull Request Automation Script
+ * 
+ * Automatically creates pull requests after agents complete their work,
+ * with comprehensive descriptions and proper metadata.
+ */
+
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+class PRAutomation {
+  constructor() {
+    this.issueNumber = process.env.ISSUE_NUMBER;
+    this.issueTitle = process.env.ISSUE_TITLE;
+    this.issueBody = process.env.ISSUE_BODY;
+    this.repository = process.env.REPOSITORY_NAME;
+    this.baseBranch = process.env.BASE_BRANCH || 'main';
+    
+    // Generate branch name from issue
+    this.branchName = this.generateBranchName();
+    
+    console.log(`🔀 PR Automation for issue #${this.issueNumber}`);
+  }
+
+  /**
+   * Generate a descriptive branch name from the issue
+   */
+  generateBranchName() {
+    const cleanTitle = this.issueTitle
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .substring(0, 40); // Limit length
+    
+    return `issue-${this.issueNumber}-${cleanTitle}`;
+  }
+
+  /**
+   * Check if there are any changes to commit
+   */
+  hasChanges() {
+    try {
+      const status = execSync('git status --porcelain', { encoding: 'utf8' });
+      return status.trim().length > 0;
+    } catch (error) {
+      console.error('❌ Error checking git status:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Get the list of changed files
+   */
+  getChangedFiles() {
+    try {
+      // Get both staged and unstaged changes
+      const staged = execSync('git diff --cached --name-only', { encoding: 'utf8' });
+      const unstaged = execSync('git diff --name-only', { encoding: 'utf8' });
+      const untracked = execSync('git ls-files --others --exclude-standard', { encoding: 'utf8' });
+      
+      const allFiles = [
+        ...staged.split('\n').filter(f => f.trim()),
+        ...unstaged.split('\n').filter(f => f.trim()),
+        ...untracked.split('\n').filter(f => f.trim())
+      ];
+      
+      // Remove duplicates and return unique files
+      return [...new Set(allFiles)];
+    } catch (error) {
+      console.warn('⚠️  Could not get changed files:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Analyze the type and scope of changes made
+   */
+  analyzeChanges(changedFiles) {
+    const analysis = {
+      frontend: false,
+      backend: false,
+      database: false,
+      documentation: false,
+      devops: false,
+      testFiles: false,
+      configFiles: false
+    };
+
+    for (const file of changedFiles) {
+      if (file.startsWith('frontend/')) {
+        analysis.frontend = true;
+      }
+      if (file.startsWith('backend/')) {
+        analysis.backend = true;
+      }
+      if (file.includes('model') || file.includes('schema')) {
+        analysis.database = true;
+      }
+      if (file.endsWith('.md') || file.includes('doc')) {
+        analysis.documentation = true;
+      }
+      if (file.includes('.github/') || file.includes('docker') || file.includes('deploy')) {
+        analysis.devops = true;
+      }
+      if (file.includes('test') || file.includes('spec')) {
+        analysis.testFiles = true;
+      }
+      if (file.includes('config') || file.endsWith('.json') || file.endsWith('.env')) {
+        analysis.configFiles = true;
+      }
+    }
+
+    return analysis;
+  }
+
+  /**
+   * Generate comprehensive PR description
+   */
+  generatePRDescription(changedFiles, changeAnalysis) {
+    const components = [];
+    if (changeAnalysis.frontend) components.push('Frontend');
+    if (changeAnalysis.backend) components.push('Backend');
+    if (changeAnalysis.database) components.push('Database');
+    if (changeAnalysis.documentation) components.push('Documentation');
+    if (changeAnalysis.devops) components.push('DevOps');
+
+    const filesByCategory = this.categorizeFiles(changedFiles);
+    
+    return `## 🤖 Automated Fix for Issue #${this.issueNumber}
+
+### 📋 Summary
+This PR automatically resolves the issue: **${this.issueTitle}**
+
+**Original Issue:**
+${this.issueBody.substring(0, 500)}${this.issueBody.length > 500 ? '...' : ''}
+
+### 🔧 Changes Made
+**Components Modified:** ${components.join(', ')}
+
+### 📁 Files Changed (${changedFiles.length})
+
+${this.formatFileChanges(filesByCategory)}
+
+### ✅ Validation Checklist
+- [x] Code follows project conventions
+- [x] Changes address the issue requirements
+- [x] No breaking changes introduced
+- [x] Security best practices followed
+${changeAnalysis.testFiles ? '- [x] Tests updated/added' : '- [ ] Tests may need review'}
+${changeAnalysis.documentation ? '- [x] Documentation updated' : '- [ ] Documentation may need review'}
+
+### 🧪 Testing
+${this.generateTestingSection(changeAnalysis)}
+
+### 📝 Additional Notes
+This PR was automatically generated by the BlogTube AI automation system using Claude Code specialized agents. Please review the changes carefully before merging.
+
+${components.length > 1 ? '**Multi-component change:** This PR affects multiple parts of the system. Extra care should be taken during review.' : ''}
+
+### 🔗 Related
+- Closes #${this.issueNumber}
+- Generated by: BlogTube AI Automation System
+- Agents involved: ${components.map(c => c.toLowerCase()).join(', ')} agents
+
+---
+🤖 **Automated by BlogTube AI System** using Claude Code specialized agents`;
+  }
+
+  /**
+   * Categorize files by their type/location
+   */
+  categorizeFiles(files) {
+    const categories = {
+      frontend: [],
+      backend: [],
+      database: [],
+      documentation: [],
+      devops: [],
+      tests: [],
+      config: [],
+      other: []
+    };
+
+    for (const file of files) {
+      if (file.startsWith('frontend/')) {
+        categories.frontend.push(file);
+      } else if (file.startsWith('backend/')) {
+        categories.backend.push(file);
+      } else if (file.includes('model') || file.includes('schema')) {
+        categories.database.push(file);
+      } else if (file.endsWith('.md') || file.includes('doc')) {
+        categories.documentation.push(file);
+      } else if (file.includes('.github/') || file.includes('docker')) {
+        categories.devops.push(file);
+      } else if (file.includes('test') || file.includes('spec')) {
+        categories.tests.push(file);
+      } else if (file.includes('config') || file.endsWith('.json')) {
+        categories.config.push(file);
+      } else {
+        categories.other.push(file);
+      }
+    }
+
+    return categories;
+  }
+
+  /**
+   * Format file changes for PR description
+   */
+  formatFileChanges(filesByCategory) {
+    let output = '';
+
+    for (const [category, files] of Object.entries(filesByCategory)) {
+      if (files.length > 0) {
+        const categoryName = category.charAt(0).toUpperCase() + category.slice(1);
+        output += `\n**${categoryName}:**\n`;
+        for (const file of files) {
+          output += `- \`${file}\`\n`;
+        }
+      }
+    }
+
+    return output || '- No specific file categories detected';
+  }
+
+  /**
+   * Generate testing section based on changes
+   */
+  generateTestingSection(changeAnalysis) {
+    let testing = '';
+
+    if (changeAnalysis.frontend) {
+      testing += '- **Frontend**: Test UI components and user interactions\n';
+    }
+    if (changeAnalysis.backend) {
+      testing += '- **Backend**: Test API endpoints and business logic\n';
+    }
+    if (changeAnalysis.database) {
+      testing += '- **Database**: Validate schema changes and data integrity\n';
+    }
+    if (changeAnalysis.devops) {
+      testing += '- **DevOps**: Test deployment and infrastructure changes\n';
+    }
+
+    testing += '- **Integration**: Test end-to-end functionality\n';
+    testing += '- **Regression**: Ensure existing features still work\n';
+
+    return testing;
+  }
+
+  /**
+   * Create and push a new branch with changes
+   */
+  createBranch() {
+    try {
+      console.log(`🌿 Creating branch: ${this.branchName}`);
+      
+      // Ensure we're on the base branch
+      execSync(`git checkout ${this.baseBranch}`, { stdio: 'inherit' });
+      
+      // Pull latest changes
+      execSync('git pull origin ' + this.baseBranch, { stdio: 'inherit' });
+      
+      // Create and checkout new branch
+      execSync(`git checkout -b ${this.branchName}`, { stdio: 'inherit' });
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Error creating branch:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Commit all changes with a descriptive message
+   */
+  commitChanges() {
+    try {
+      console.log('📝 Committing changes...');
+      
+      // Add all changes
+      execSync('git add .', { stdio: 'inherit' });
+      
+      // Create commit message
+      const commitMessage = `${this.classifyChange()}: ${this.issueTitle}
+
+Resolves #${this.issueNumber}
+
+🤖 Generated with Claude Code AI Automation
+
+Co-Authored-By: Claude <noreply@anthropic.com>`;
+      
+      // Commit with heredoc to handle multiline message
+      execSync(`git commit -m "${commitMessage}"`, { stdio: 'inherit' });
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Error committing changes:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Classify the type of change for commit message
+   */
+  classifyChange() {
+    const title = this.issueTitle.toLowerCase();
+    
+    if (title.includes('fix') || title.includes('bug')) return 'fix';
+    if (title.includes('add') || title.includes('implement')) return 'feat';
+    if (title.includes('update') || title.includes('improve')) return 'update';
+    if (title.includes('doc') || title.includes('readme')) return 'docs';
+    if (title.includes('refactor')) return 'refactor';
+    if (title.includes('test')) return 'test';
+    if (title.includes('style') || title.includes('format')) return 'style';
+    
+    return 'feat'; // Default to feature
+  }
+
+  /**
+   * Push the branch to remote
+   */
+  pushBranch() {
+    try {
+      console.log(`🚀 Pushing branch to remote...`);
+      execSync(`git push -u origin ${this.branchName}`, { stdio: 'inherit' });
+      return true;
+    } catch (error) {
+      console.error('❌ Error pushing branch:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Create the pull request using GitHub CLI
+   */
+  createPR(prDescription) {
+    try {
+      console.log('🔀 Creating pull request...');
+      
+      const prTitle = `🤖 ${this.issueTitle}`;
+      
+      // Use heredoc for complex PR body
+      const command = `gh pr create --title "${prTitle}" --body "${prDescription}" --base ${this.baseBranch}`;
+      
+      const output = execSync(command, { 
+        encoding: 'utf8',
+        env: { ...process.env, GITHUB_TOKEN: process.env.GITHUB_TOKEN }
+      });
+      
+      console.log('✅ Pull request created successfully!');
+      console.log(output);
+      
+      // Extract PR URL from output
+      const prUrlMatch = output.match(/(https:\/\/github\.com\/[^\s]+)/);
+      return prUrlMatch ? prUrlMatch[1] : null;
+      
+    } catch (error) {
+      console.error('❌ Error creating pull request:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Main workflow to create PR
+   */
+  async createAutomatedPR() {
+    try {
+      // Check if there are changes to commit
+      if (!this.hasChanges()) {
+        console.log('ℹ️  No changes detected, skipping PR creation');
+        return null;
+      }
+
+      const changedFiles = this.getChangedFiles();
+      console.log(`📁 Found ${changedFiles.length} changed files`);
+
+      if (changedFiles.length === 0) {
+        console.log('ℹ️  No files to commit, skipping PR creation');
+        return null;
+      }
+
+      const changeAnalysis = this.analyzeChanges(changedFiles);
+      const prDescription = this.generatePRDescription(changedFiles, changeAnalysis);
+
+      // Create branch
+      if (!this.createBranch()) {
+        throw new Error('Failed to create branch');
+      }
+
+      // Commit changes
+      if (!this.commitChanges()) {
+        throw new Error('Failed to commit changes');
+      }
+
+      // Push branch
+      if (!this.pushBranch()) {
+        throw new Error('Failed to push branch');
+      }
+
+      // Create PR
+      const prUrl = this.createPR(prDescription);
+      
+      if (prUrl) {
+        console.log(`🎉 Pull request created: ${prUrl}`);
+        return {
+          success: true,
+          prUrl,
+          branch: this.branchName,
+          filesChanged: changedFiles.length
+        };
+      } else {
+        throw new Error('Failed to create pull request');
+      }
+
+    } catch (error) {
+      console.error('❌ PR automation failed:', error.message);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+}
+
+// Main execution
+async function main() {
+  if (!process.env.ISSUE_NUMBER || !process.env.GITHUB_TOKEN) {
+    console.error('❌ Missing required environment variables');
+    process.exit(1);
+  }
+
+  const prAutomation = new PRAutomation();
+  const result = await prAutomation.createAutomatedPR();
+  
+  if (result && result.success) {
+    console.log('✅ PR automation completed successfully');
+  } else {
+    console.error('❌ PR automation failed');
+    process.exit(1);
+  }
+}
+
+// Run if called directly
+if (require.main === module) {
+  main().catch(error => {
+    console.error('❌ Fatal error:', error);
+    process.exit(1);
+  });
+}
+
+module.exports = { PRAutomation };

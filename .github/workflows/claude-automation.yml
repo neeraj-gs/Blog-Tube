@@ -1,0 +1,87 @@
+name: 🤖 Claude Code AI Automation
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: write
+
+jobs:
+  claude-automation:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened' || github.event.action == 'edited' || (github.event.action == 'created' && contains(github.event.comment.body, '@claude-automate'))
+    
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: 📦 Install Dependencies
+        run: |
+          if [ -f "frontend/package.json" ]; then cd frontend && npm install; fi
+          if [ -f "backend/package.json" ]; then cd backend && npm install; fi
+
+      - name: 🤖 Run Claude Code Automation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_LABELS: ${{ toJson(github.event.issue.labels) }}
+          ISSUE_USER: ${{ github.event.issue.user.login }}
+          REPOSITORY_NAME: ${{ github.repository }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          # Install GitHub CLI if not available
+          if ! command -v gh &> /dev/null; then
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt update
+            sudo apt install gh
+          fi
+          
+          # Install Claude Code CLI if not already available
+          if ! command -v claude &> /dev/null; then
+            curl -fsSL https://anthropic.com/install.sh | sh
+            export PATH="$HOME/.local/bin:$PATH"
+          fi
+          
+          # Run the Claude Code integration script
+          node automation/claude-code-integration.js
+
+      - name: 🔍 Validate Changes
+        if: success()
+        run: |
+          # Run basic validation
+          if [ -f "frontend/package.json" ]; then
+            cd frontend && npm run build --if-present
+          fi
+          if [ -f "backend/package.json" ]; then
+            cd backend && npm run build --if-present
+          fi
+
+      - name: 📝 Update Issue Status
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Update issue with automation status
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Claude Code automation completed successfully" >> automation_status.txt
+          else
+            echo "❌ Claude Code automation encountered issues" >> automation_status.txt
+          fi
