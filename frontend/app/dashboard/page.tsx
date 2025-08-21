@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
-  blogData?: any;
+  blogData?: { _id: string; title: string; content: string; summary: string };
 }
 
 export default function DashboardPage() {
@@ -42,6 +42,7 @@ export default function DashboardPage() {
       syncUser();
       fetchUserCredits();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function DashboardPage() {
     }
   }, [messages]);
 
-  const syncUser = async () => {
+  const syncUser = useCallback(async () => {
     try {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/sync`, {
         method: "POST",
@@ -63,7 +64,8 @@ export default function DashboardPage() {
     } catch (error) {
       console.error("Error syncing user:", error);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchUserCredits = async () => {
     // This would fetch from your API
@@ -133,7 +135,7 @@ export default function DashboardPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${await user?.getToken()}`,
+            Authorization: `Bearer ${await getToken()}`,
           },
           body: JSON.stringify({
             type: "youtube",
@@ -190,11 +192,11 @@ export default function DashboardPage() {
         title: "Success",
         description: "Blog generated successfully!",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error generating blog:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to generate blog",
+        description: error instanceof Error ? error.message : "Failed to generate blog",
         variant: "destructive",
       });
 
@@ -217,7 +219,7 @@ export default function DashboardPage() {
     });
   };
 
-  const handleDownload = (blog: any) => {
+  const handleDownload = (blog: { title: string; content: string }) => {
     const element = document.createElement("a");
     const file = new Blob([blog.content], { type: "text/markdown" });
     element.href = URL.createObjectURL(file);
@@ -280,19 +282,19 @@ export default function DashboardPage() {
                       <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                       {message.blogData && (
                         <Card className="mt-4 p-4">
-                          <h3 className="font-semibold mb-2">{message.blogData.title}</h3>
+                          <h3 className="font-semibold mb-2">{message.blogData?.title}</h3>
                           <p className="text-sm text-muted-foreground mb-3">
-                            {message.blogData.summary}
+                            {message.blogData?.summary}
                           </p>
                           <div className="flex gap-2">
-                            <Button size="sm" onClick={() => handleEdit(message.blogData._id)}>
+                            <Button size="sm" onClick={() => handleEdit(message.blogData?._id || '')}>
                               <Edit className="w-3 h-3 mr-1" />
                               Edit
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleCopy(message.blogData.content)}
+                              onClick={() => message.blogData && handleCopy(message.blogData.content)}
                             >
                               <Copy className="w-3 h-3 mr-1" />
                               Copy
@@ -300,7 +302,7 @@ export default function DashboardPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleDownload(message.blogData)}
+                              onClick={() => message.blogData && handleDownload(message.blogData)}
                             >
                               <Download className="w-3 h-3 mr-1" />
                               Download

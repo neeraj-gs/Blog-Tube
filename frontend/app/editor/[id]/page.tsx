@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser, useAuth } from "@clerk/nextjs";
 import dynamic from "next/dynamic";
@@ -80,9 +80,10 @@ export default function EditorPage() {
     if (params.id && user) {
       fetchBlog();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id, user]);
 
-  const fetchBlog = async () => {
+  const fetchBlog = useCallback(async () => {
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/blogs/${params.id}`,
@@ -103,7 +104,7 @@ export default function EditorPage() {
       setContent(data.content);
       setSummary(data.summary || "");
       setTags(data.tags || []);
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to load blog",
@@ -113,7 +114,8 @@ export default function EditorPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getToken, params.id]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -147,7 +149,7 @@ export default function EditorPage() {
         title: "Success",
         description: "Blog saved successfully",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to save blog",
@@ -185,7 +187,7 @@ export default function EditorPage() {
         title: "Success",
         description: "Blog published successfully",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to publish blog",

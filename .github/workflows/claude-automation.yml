@@ -10,6 +10,9 @@ permissions:
   issues: write
   pull-requests: write
   contents: write
+  actions: write
+  checks: write
+  repository-projects: write
 
 jobs:
   claude-automation:
@@ -22,6 +25,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          persist-credentials: true
 
       - name: 🔧 Configure Git Identity
         run: |
@@ -43,6 +47,7 @@ jobs:
       - name: 🤖 Run Claude Code Automation
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
@@ -92,7 +97,7 @@ jobs:
           echo "🧪 Running basic validation..."
           if [ -f "frontend/package.json" ]; then
             echo "Validating frontend changes..."
-            cd frontend && npm install --silent && npm run build --if-present
+            cd frontend && npm install --silent && npm run build
           fi
           if [ -f "backend/package.json" ]; then
             echo "Validating backend changes..."

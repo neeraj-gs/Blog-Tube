@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +28,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   Search,
-  Filter,
   Calendar,
   Clock,
   FileText,
@@ -85,13 +84,15 @@ export default function BlogsPage() {
     if (user) {
       fetchBlogs();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, page, statusFilter]);
 
   useEffect(() => {
     filterBlogs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, blogs]);
 
-  const fetchBlogs = async () => {
+  const fetchBlogs = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -116,7 +117,7 @@ export default function BlogsPage() {
       const data = await response.json();
       setBlogs(data.blogs);
       setTotalPages(data.pagination.pages);
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to load blogs",
@@ -125,9 +126,10 @@ export default function BlogsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getToken, page, statusFilter]);
 
-  const filterBlogs = () => {
+  const filterBlogs = useCallback(() => {
     if (!searchQuery) {
       setFilteredBlogs(blogs);
       return;
@@ -141,7 +143,7 @@ export default function BlogsPage() {
         blog.tags?.some((tag) => tag.toLowerCase().includes(query))
     );
     setFilteredBlogs(filtered);
-  };
+  }, [searchQuery, blogs]);
 
   const handleDelete = async () => {
     if (!selectedBlog) return;
@@ -169,7 +171,7 @@ export default function BlogsPage() {
       });
       setShowDeleteDialog(false);
       setSelectedBlog(null);
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to delete blog",
@@ -206,7 +208,7 @@ export default function BlogsPage() {
         title: "Success",
         description: blog.status === "archived" ? "Blog unarchived" : "Blog archived",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to update blog",
@@ -273,7 +275,7 @@ export default function BlogsPage() {
                 className="pl-9"
               />
             </div>
-            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as 'all' | 'draft' | 'published' | 'archived')}>
               <TabsList>
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="draft">Drafts</TabsTrigger>
@@ -435,7 +437,7 @@ export default function BlogsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Blog</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete "{selectedBlog?.title}"? This action cannot be undone.
+                Are you sure you want to delete &quot;{selectedBlog?.title}&quot;? This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
