@@ -229,6 +229,10 @@ class ClaudeCommands {
    * Validation helper methods
    */
   validateProjectStructure() {
+    // Check if running from project root or automation directory
+    const isInAutomationDir = path.basename(this.projectRoot) === 'automation';
+    const basePath = isInAutomationDir ? path.dirname(this.projectRoot) : this.projectRoot;
+    
     const requiredPaths = [
       'automation',
       'automation/agents',
@@ -236,10 +240,15 @@ class ClaudeCommands {
       '.github/workflows/claude-automation.yml'
     ];
 
+    const missingPaths = [];
     for (const reqPath of requiredPaths) {
-      if (!fs.existsSync(path.join(this.projectRoot, reqPath))) {
-        return { success: false, message: `Missing: ${reqPath}` };
+      if (!fs.existsSync(path.join(basePath, reqPath))) {
+        missingPaths.push(reqPath);
       }
+    }
+
+    if (missingPaths.length > 0) {
+      return { success: false, message: `Missing: ${missingPaths.join(', ')}` };
     }
 
     return { success: true, message: 'All required directories and files present' };
@@ -247,13 +256,21 @@ class ClaudeCommands {
 
   validateAgentDocs() {
     const agentTypes = ['frontend', 'backend', 'database', 'devops', 'documentation'];
-    const agentsDir = path.join(this.automationDir, 'agents');
+    const isInAutomationDir = path.basename(this.projectRoot) === 'automation';
+    const agentsDir = isInAutomationDir ? 
+      path.join(this.projectRoot, 'agents') : 
+      path.join(this.projectRoot, 'automation', 'agents');
     
+    const missingAgents = [];
     for (const agentType of agentTypes) {
       const agentFile = path.join(agentsDir, `${agentType}-agent.md`);
       if (!fs.existsSync(agentFile)) {
-        return { success: false, message: `Missing agent: ${agentType}-agent.md` };
+        missingAgents.push(`${agentType}-agent.md`);
       }
+    }
+
+    if (missingAgents.length > 0) {
+      return { success: false, message: `Missing agents: ${missingAgents.join(', ')}` };
     }
 
     return { success: true, message: `All ${agentTypes.length} agent documentation files present` };
@@ -295,10 +312,16 @@ class ClaudeCommands {
     console.log('🤖 Available Agents:');
     console.log('═'.repeat(30));
 
-    const agentsDir = path.join(this.automationDir, 'agents');
+    // Check if running from project root or automation directory
+    const isInAutomationDir = path.basename(this.projectRoot) === 'automation';
+    const agentsDir = isInAutomationDir ? 
+      path.join(this.projectRoot, 'agents') : 
+      path.join(this.projectRoot, 'automation', 'agents');
     
     if (!fs.existsSync(agentsDir)) {
-      console.log('❌ Agents directory not found');
+      console.log('❌ Agents directory not found at:', agentsDir);
+      console.log('Current directory:', this.projectRoot);
+      console.log('Looking for agents in:', agentsDir);
       return;
     }
 
