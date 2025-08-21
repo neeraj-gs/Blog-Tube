@@ -1,0 +1,68 @@
+{
+  "system": {
+    "startTime": "2025-08-21T07:04:13.559Z",
+    "totalIssuesProcessed": 1,
+    "totalAgentExecutions": 1,
+    "totalPRsCreated": 0,
+    "lastActivity": "2025-08-21T07:04:13.564Z"
+  },
+  "agents": {
+    "frontend": {
+      "executions": 1,
+      "successes": 1,
+      "failures": 0,
+      "avgDuration": 7011
+    },
+    "backend": {
+      "executions": 0,
+      "successes": 0,
+      "failures": 0,
+      "avgDuration": 0
+    },
+    "database": {
+      "executions": 0,
+      "successes": 0,
+      "failures": 0,
+      "avgDuration": 0
+    },
+    "devops": {
+      "executions": 0,
+      "successes": 0,
+      "failures": 0,
+      "avgDuration": 0
+    },
+    "documentation": {
+      "executions": 0,
+      "successes": 0,
+      "failures": 0,
+      "avgDuration": 0
+    }
+  },
+  "issues": {
+    "byType": {
+      "bug": 0,
+      "feature": 1,
+      "enhancement": 0,
+      "documentation": 0,
+      "performance": 0
+    },
+    "byComplexity": {
+      "simple": 1,
+      "moderate": 0,
+      "complex": 0
+    },
+    "byRisk": {
+      "low": 1,
+      "medium": 0,
+      "high": 0
+    },
+    "autoImplemented": 0,
+    "manualReview": 0
+  },
+  "performance": {
+    "avgProcessingTime": 0,
+    "avgAgentSpawnTime": 0,
+    "avgPRCreationTime": 0,
+    "totalErrors": 0
+  }
+}
