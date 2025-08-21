@@ -2,7 +2,7 @@ name: 🤖 Claude Code AI Automation
 
 on:
   issues:
-    types: [opened, edited, labeled]
+    types: [opened]
   issue_comment:
     types: [created]
 
@@ -14,7 +14,7 @@ permissions:
 jobs:
   claude-automation:
     runs-on: ubuntu-latest
-    if: github.event.action == 'opened' || github.event.action == 'edited' || (github.event.action == 'created' && contains(github.event.comment.body, '@claude-automate'))
+    if: github.event.action == 'opened' || (github.event.action == 'created' && contains(github.event.comment.body, '@claude-automate'))
     
     steps:
       - name: 📥 Checkout Repository
@@ -30,8 +30,9 @@ jobs:
 
       - name: 📦 Install Dependencies
         run: |
-          if [ -f "frontend/package.json" ]; then cd frontend && npm install; fi
-          if [ -f "backend/package.json" ]; then cd backend && npm install; fi
+          echo "🔧 Installing automation dependencies..."
+          cd automation && npm install
+          echo "✅ Automation dependencies installed"
 
       - name: 🤖 Run Claude Code Automation
         env:
@@ -46,19 +47,24 @@ jobs:
           REPOSITORY_OWNER: ${{ github.repository_owner }}
           COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
+          echo "🚀 Starting BlogTube AI Automation..."
+          echo "📋 Issue: #${{ github.event.issue.number }} - ${{ github.event.issue.title }}"
+          
           # Install GitHub CLI if not available
+          echo "🔧 Setting up GitHub CLI..."
           if ! command -v gh &> /dev/null; then
             curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
             echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
             sudo apt update
             sudo apt install gh
           fi
+          echo "✅ GitHub CLI ready"
           
-          # Install Claude Code CLI if not already available
-          if ! command -v claude &> /dev/null; then
-            curl -fsSL https://anthropic.com/install.sh | sh
-            export PATH="$HOME/.local/bin:$PATH"
-          fi
+          # Claude Code Task tool will be used directly within the automation system
+          echo "🤖 Claude Code Task tool integration ready"
+          
+          echo "🎯 Launching Claude Code Automation System..."
+          echo "Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}"
           
           # Run the Claude Code integration script
           node automation/claude-code-integration.js
@@ -66,22 +72,47 @@ jobs:
       - name: 🔍 Validate Changes
         if: success()
         run: |
-          # Run basic validation
+          echo "🔍 Validating automation results..."
+          
+          # Check if any changes were made
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "📁 Changes detected:"
+            git status --short
+            echo "✅ Code changes successfully made by automation"
+          else
+            echo "ℹ️ No code changes made (might be documentation or analysis only)"
+          fi
+          
+          echo "🧪 Running basic validation..."
           if [ -f "frontend/package.json" ]; then
+            echo "Validating frontend changes..."
             cd frontend && npm run build --if-present
           fi
           if [ -f "backend/package.json" ]; then
+            echo "Validating backend changes..."
             cd backend && npm run build --if-present
           fi
+          
+          echo "✅ Validation completed"
 
-      - name: 📝 Update Issue Status
+      - name: 📊 Report Automation Status
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Update issue with automation status
+          echo "📊 BlogTube AI Automation Workflow Summary"
+          echo "=============================================="
+          echo "Issue: #${{ github.event.issue.number }} - ${{ github.event.issue.title }}"
+          echo "Status: ${{ job.status }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          
           if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ Claude Code automation completed successfully" >> automation_status.txt
+            echo "✅ BlogTube AI automation completed successfully!"
+            echo "🔍 Check the issue for automation results and potential PR"
           else
-            echo "❌ Claude Code automation encountered issues" >> automation_status.txt
+            echo "❌ BlogTube AI automation encountered issues"
+            echo "🔍 Check the workflow logs for error details"
           fi
+          
+          echo "=============================================="
