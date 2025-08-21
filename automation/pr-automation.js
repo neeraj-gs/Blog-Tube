@@ -281,6 +281,14 @@ ${components.length > 1 ? '**Multi-component change:** This PR affects multiple 
     try {
       console.log('📝 Committing changes...');
       
+      // Ensure git identity is configured
+      try {
+        execSync('git config --global user.name "BlogTube AI Automation"', { stdio: 'pipe' });
+        execSync('git config --global user.email "ai-automation@blogtube.com"', { stdio: 'pipe' });
+      } catch (configError) {
+        console.warn('⚠️  Git config warning (may already be set):', configError.message);
+      }
+      
       // Add all changes
       execSync('git add .', { stdio: 'inherit' });
       

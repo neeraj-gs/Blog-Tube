@@ -23,6 +23,12 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
+      - name: 🔧 Configure Git Identity
+        run: |
+          git config --global user.name "BlogTube AI Automation"
+          git config --global user.email "ai-automation@blogtube.com"
+          echo "✅ Git identity configured"
+
       - name: 🔧 Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -86,11 +92,11 @@ jobs:
           echo "🧪 Running basic validation..."
           if [ -f "frontend/package.json" ]; then
             echo "Validating frontend changes..."
-            cd frontend && npm run build --if-present
+            cd frontend && npm install --silent && npm run build --if-present
           fi
           if [ -f "backend/package.json" ]; then
             echo "Validating backend changes..."
-            cd backend && npm run build --if-present
+            cd backend && npm install --silent && npm run build --if-present
           fi
           
           echo "✅ Validation completed"
