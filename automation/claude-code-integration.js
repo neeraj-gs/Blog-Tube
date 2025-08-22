@@ -739,11 +739,14 @@ The ${agentType} agent has processed this request and made appropriate changes.
       autoImplement: false
     };
 
-    // Determine if we should auto-implement
-    analysis.autoImplement = (
-      (analysis.complexity === 'simple' && analysis.risk === 'low') ||
-      (analysis.complexity === 'moderate' && analysis.risk === 'low')
-    );
+    // Always auto-implement - remove human intervention requirement
+    analysis.autoImplement = true;
+
+    // Ensure we have at least one agent (default to frontend if none detected)
+    if (analysis.agents.length === 0) {
+      console.log('⚠️ No specific agents detected, defaulting to frontend agent');
+      analysis.agents.push('frontend');
+    }
 
     return analysis;
   }
@@ -795,16 +798,30 @@ The ${agentType} agent has processed this request and made appropriate changes.
   determineRequiredAgents(title) {
     const agents = [];
 
-    if (title.includes('ui') || title.includes('component') || title.includes('frontend')) {
+    // Frontend keywords
+    if (title.includes('ui') || title.includes('component') || title.includes('frontend') ||
+        title.includes('dashboard') || title.includes('color') || title.includes('background') ||
+        title.includes('theme') || title.includes('toggle') || title.includes('button') ||
+        title.includes('search') || title.includes('spinner') || title.includes('loading') ||
+        title.includes('page') || title.includes('style') || title.includes('layout')) {
       agents.push('frontend');
     }
-    if (title.includes('api') || title.includes('backend') || title.includes('server')) {
+    
+    // Backend keywords  
+    if (title.includes('api') || title.includes('backend') || title.includes('server') ||
+        title.includes('endpoint') || title.includes('route') || title.includes('service')) {
       agents.push('backend');
     }
-    if (title.includes('database') || title.includes('schema') || title.includes('model')) {
+    
+    // Database keywords
+    if (title.includes('database') || title.includes('schema') || title.includes('model') ||
+        title.includes('migration') || title.includes('data')) {
       agents.push('database');
     }
-    if (title.includes('deploy') || title.includes('ci') || title.includes('performance')) {
+    
+    // DevOps keywords
+    if (title.includes('deploy') || title.includes('ci') || title.includes('performance') ||
+        title.includes('docker') || title.includes('workflow')) {
       agents.push('devops');
     }
     if (title.includes('doc') || title.includes('readme') || title.includes('guide')) {
@@ -858,13 +875,54 @@ The ${agentType} agent has processed this request and made appropriate changes.
         complexity: analysis.complexity
       });
 
-      // Register issue with coordinator
-      const issueId = this.coordinator.registerIssue(this.issueNumber, analysis, analysis.agents);
+      // Register issue with coordinator (with error handling)
+      let issueId;
+      try {
+        issueId = this.coordinator.registerIssue(this.issueNumber, analysis, analysis.agents);
+        console.log(`🔍 DEBUG: Registered issue with coordinator: ${issueId}`);
+      } catch (error) {
+        console.error('❌ Error registering with coordinator:', error.message);
+        console.log('🔄 Proceeding with direct agent execution...');
+      }
 
       const results = [];
       
       // Execute agents using coordination system
+      console.log(`🔍 DEBUG: Analysis agents: ${JSON.stringify(analysis.agents)}`);
+      console.log(`🔍 DEBUG: Getting next agent from coordinator...`);
+      
       let nextAgent = this.coordinator.getNextAgent();
+      console.log(`🔍 DEBUG: Next agent received:`, nextAgent);
+      
+      // Fallback: if coordination system doesn't return agent or results are empty, execute directly
+      if (!nextAgent && analysis.agents.length > 0 && results.length === 0) {
+        console.log(`🔍 DEBUG: Using fallback direct execution for agents: ${analysis.agents}`);
+        
+        for (const agentType of analysis.agents) {
+          try {
+            this.logProgress('🤖 WORKING ON IT', `Executing ${agentType} agent for specialized implementation`, {
+              agentType: agentType,
+              issueNumber: this.issueNumber
+            });
+            
+            const startTime = Date.now();
+            const result = await this.executeClaudeAgent(agentType, analysis);
+            const duration = Date.now() - startTime;
+            
+            this.logProgress('✅ AGENT COMPLETED', `${agentType} agent finished execution`, {
+              success: result.success,
+              duration: `${Math.round(duration/1000)}s`,
+              agentType: agentType
+            });
+            
+            results.push(result);
+            
+          } catch (error) {
+            console.error(`❌ ${agentType} agent failed:`, error.message);
+            results.push({ success: false, agentType, error: error.message });
+          }
+        }
+      }
       
       while (nextAgent) {
         try {
