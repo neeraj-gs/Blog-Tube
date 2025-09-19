@@ -29,6 +29,10 @@ export default function RootLayout({
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
+        <header className="border-b p-4 flex justify-between items-center">
+          <h1 className="text-xl font-bold">BlogTube</h1>
+          <ThemeToggle />
+        </header>
           {children}
         </body>
       </html>
