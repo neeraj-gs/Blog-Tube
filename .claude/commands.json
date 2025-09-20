@@ -1,3 +1,4 @@
+/* COMMENTED OUT - Replaced with claude-shared integration
 {
   "commands": [
     {
@@ -148,3 +149,4 @@
     }
   ]
 }
+*/
