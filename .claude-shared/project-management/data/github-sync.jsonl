@@ -1,0 +1,4 @@
+# Claudia GitHub Sync Log - Append Only
+# Format: One JSON object per line
+# Never delete or modify existing lines - only append new ones{"timestamp":"2025-08-22T03:35:15Z","action":"github_assigned","ticket_uuid":"030-01-01-token-model-refactoring","github_issue":570,"github_url":"https://github.com/penomoprotocol/penomo-api/issues/570","issue_title":"030-01-01: Token Model Refactoring for Engine-Agnostic Architecture","sprint":"030","requirement_uuid":"030-01-model-refactoring-integration","target_env":"dev","status":"assigned"}
+{"timestamp":"2025-08-26T00:00:00Z","action":"sprint_issues_renamed","old_sprint":"030","new_sprint":"031","issues_updated":[570,571,572,573,574,575,576,577,578,579,580,581],"total_issues":12,"reason":"Sprint renaming from 030 to 031","author":"claudia"}

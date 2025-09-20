@@ -1,0 +1,815 @@
+# Multi-Wallet Provider Integration - Strategic Implementation Plan
+
+**Author:** Sascha Kubisch  
+**Date:** September 8, 2025  
+**Status:** Planning Phase - Strategic Expansion  
+**Type:** Authentication & Wallet Infrastructure Enhancement  
+
+## Executive Summary
+
+Strategic implementation of **single enterprise-grade wallet provider** for the **Penomo Tokenization Platform (Penomo B.V.)** specifically for **accredited investors only**. Web3Auth will be maintained only on the Penomo Retail Platform (Penomo LTD). **CRITICAL DECISION REQUIRED**: Choose between **Turnkey.com** (performance-focused) OR **DFNS.co** (compliance-focused) - not both.
+
+**Key Enhancement**: Implement **single wallet provider integration** specifically for the **Penomo Tokenization Platform (Penomo B.V.)** for **accredited investors only**. **CRITICAL DECISION REQUIRED**: Choose between Turnkey.com (performance-focused) OR DFNS.co (compliance-focused) wallet providers - **not both**. **Web3Auth will be removed from the tokenization platform** and maintained only on the Penomo Retail Platform (Penomo LTD).
+
+## Business Rationale
+
+### Current Limitations
+- **Single wallet provider**: Web3Auth only, limiting enterprise options
+- **No compliance-specific wallets**: Missing financial institution-grade solutions
+- **Performance constraints**: MPC limitations for high-frequency operations
+- **Enterprise adoption barriers**: Lack of choice for institutional investors
+
+### Strategic Benefits (Single Provider Decision)
+- **Focused Integration**: Deep integration with single enterprise-grade provider
+- **Simplified Architecture**: No multi-provider complexity or switching logic
+- **Cost Efficiency**: Single provider licensing and maintenance costs
+- **Decision Options**:
+  - **Turnkey Option**: High-speed signing, performance optimization, enterprise security
+  - **DFNS Option**: Compliance focus, ERC-3643 support, regulatory features
+- **Competitive Advantage**: Enterprise-grade wallet solution for accredited investors
+
+## Implementation Constraints
+
+### What We CAN Change
+- **Middleware**: `verifyApiKeyOrWeb3AuthToken.middleware.ts` → `verifyApiKeyOrWalletToken.middleware.ts`
+- **Services**: New `walletProvider.service.ts`, `turnkey.service.ts`, `dfns.service.ts`
+- **Models**: Extend `user.model.ts` with wallet provider preferences
+- **Controllers**: New wallet provider selection endpoints
+- **Frontend**: Wallet provider selection UI components
+
+### What We MUST Keep
+- **Web3Auth compatibility**: All existing Web3Auth functionality unchanged
+- **Current authentication flows**: Existing JWT/API key authentication intact
+- **User models**: No breaking changes to existing user data
+- **Existing middleware**: Current auth middleware behavior preserved for Web3Auth
+
+## Architecture Overview
+
+### Current Architecture (Web3Auth Only)
+```
+User Login → Web3Auth JWT → verifyApiKeyOrWeb3AuthToken → Application
+```
+
+### Target Architecture (Multi-Provider)
+```
+User Type Check → Wallet Provider Selection → Provider-Specific Auth → Unified Middleware → Application
+├─ Retail: Web3Auth (only option)
+├─ Accredited: Web3Auth | Turnkey | DFNS
+└─ Institutional: Web3Auth | Turnkey | DFNS
+```
+
+## Database Schema Changes
+
+### 1. User Model Extension
+
+**File**: `api/models/user.model.ts`
+
+```typescript
+// Add to existing user schema
+const userSchema = new mongoose.Schema({
+  // ... existing fields ...
+  
+  // Wallet Provider Configuration (NEW)
+  walletProvider: {
+    primary: {
+      type: String,
+      enum: ['web3auth', 'turnkey', 'dfns'],
+      default: 'web3auth'
+    },
+    config: {
+      type: Schema.Types.Mixed,
+      default: {}
+    },
+    metadata: {
+      web3auth: {
+        verifierId: String,
+        publicKey: String,
+        walletAddress: String
+      },
+      turnkey: {
+        organizationId: String,
+        userId: String,
+        walletId: String,
+        publicKey: String,
+        walletAddress: String
+      },
+      dfns: {
+        walletId: String,
+        publicKey: String,
+        walletAddress: String,
+        orgId: String
+      }
+    }
+  },
+  
+  // Wallet Provider Preferences (NEW)
+  walletProviderPreferences: {
+    allowProviderChange: {
+      type: Boolean,
+      default: function() {
+        // Allow provider changes only for accredited/institutional
+        return this.investorId && 
+               ['Accredited', 'Institutional'].includes(this.investorType);
+      }
+    },
+    preferredProvider: {
+      type: String,
+      enum: ['web3auth', 'turnkey', 'dfns'],
+      default: 'web3auth'
+    },
+    lastProviderUsed: {
+      type: String,
+      enum: ['web3auth', 'turnkey', 'dfns'],
+      default: 'web3auth'
+    }
+  },
+  
+  // ... existing fields ...
+});
+```
+
+### 2. Wallet Provider Activity Tracking (NEW)
+
+**File**: `api/models/walletProviderActivity.model.ts`
+
+```typescript
+const walletProviderActivitySchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  provider: {
+    type: String,
+    enum: ['web3auth', 'turnkey', 'dfns'],
+    required: true
+  },
+  action: {
+    type: String,
+    enum: ['login', 'transaction', 'provider_switch', 'wallet_created'],
+    required: true
+  },
+  metadata: {
+    type: Schema.Types.Mixed,
+    default: {}
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now
+  },
+  success: {
+    type: Boolean,
+    default: true
+  },
+  errorDetails: {
+    type: String,
+    default: null
+  }
+});
+
+export const WalletProviderActivity = mongoose.model('WalletProviderActivity', walletProviderActivitySchema);
+```
+
+## Service Layer Implementation
+
+### 1. Wallet Provider Abstraction Service
+
+**File**: `api/services/walletProvider.service.ts`
+
+```typescript
+import { Web3AuthService } from './web3auth.service';
+import { TurnkeyService } from './turnkey.service';
+import { DfnsService } from './dfns.service';
+
+interface WalletProviderInterface {
+  authenticateUser(token: string): Promise<AuthResult>;
+  createWallet(userId: string): Promise<WalletResult>;
+  signTransaction(userId: string, transaction: any): Promise<SignatureResult>;
+  getUserWallets(userId: string): Promise<WalletInfo[]>;
+}
+
+export class WalletProviderService {
+  private providers = new Map<string, WalletProviderInterface>([
+    ['web3auth', new Web3AuthService()],
+    ['turnkey', new TurnkeyService()],
+    ['dfns', new DfnsService()]
+  ]);
+
+  async authenticateWithProvider(
+    provider: string, 
+    token: string, 
+    userType: string
+  ): Promise<AuthResult> {
+    // Validate provider access based on user type
+    this.validateProviderAccess(provider, userType);
+    
+    const service = this.providers.get(provider);
+    if (!service) {
+      throw new Error(`Unsupported wallet provider: ${provider}`);
+    }
+    
+    return await service.authenticateUser(token);
+  }
+
+  private validateProviderAccess(provider: string, userType: string): void {
+    // Retail users can only use Web3Auth
+    if (userType === 'Retail' && provider !== 'web3auth') {
+      throw new Error('Retail users can only use Web3Auth');
+    }
+    
+    // Accredited/Institutional can use all providers
+    if (['Accredited', 'Institutional'].includes(userType)) {
+      return; // All providers allowed
+    }
+    
+    // Default to Web3Auth for unknown user types
+    if (provider !== 'web3auth') {
+      throw new Error('Only Web3Auth is available for your user type');
+    }
+  }
+
+  async getAvailableProviders(userType: string): Promise<string[]> {
+    switch (userType) {
+      case 'Retail':
+        return ['web3auth'];
+      case 'Accredited':
+      case 'Institutional':
+        return ['web3auth', 'turnkey', 'dfns'];
+      default:
+        return ['web3auth'];
+    }
+  }
+}
+```
+
+### 2. Turnkey Integration Service
+
+**File**: `api/services/turnkey.service.ts`
+
+```typescript
+import { TurnkeyApiClient } from '@turnkey/sdk-server';
+import * as jose from 'jose';
+
+export class TurnkeyService implements WalletProviderInterface {
+  private client: TurnkeyApiClient;
+
+  constructor() {
+    this.client = new TurnkeyApiClient({
+      apiBaseUrl: 'https://api.turnkey.com',
+      defaultOrganizationId: process.env.TURNKEY_ORGANIZATION_ID!
+    });
+  }
+
+  async authenticateUser(token: string): Promise<AuthResult> {
+    try {
+      // Verify Turnkey JWT token
+      const { payload } = await jose.jwtVerify(
+        token, 
+        await jose.importJWK(JSON.parse(process.env.TURNKEY_PUBLIC_JWK!))
+      );
+
+      // Extract user information from Turnkey payload
+      const userId = payload.sub as string;
+      const walletId = payload.walletId as string;
+      const publicKey = payload.publicKey as string;
+      
+      // Generate Ethereum address from public key
+      const walletAddress = this.deriveEthereumAddress(publicKey);
+
+      return {
+        success: true,
+        user: {
+          providerId: userId,
+          walletId,
+          publicKey,
+          walletAddress,
+          provider: 'turnkey'
+        }
+      };
+    } catch (error) {
+      logger.error('Turnkey authentication failed:', error);
+      return { success: false, error: 'Turnkey authentication failed' };
+    }
+  }
+
+  async createWallet(userId: string): Promise<WalletResult> {
+    try {
+      const response = await this.client.createWallet({
+        organizationId: process.env.TURNKEY_ORGANIZATION_ID!,
+        walletName: `penomo-wallet-${userId}`,
+        accounts: [{
+          curve: 'CURVE_SECP256K1',
+          pathFormat: 'PATH_FORMAT_BIP32',
+          path: "m/44'/60'/0'/0/0" // Ethereum derivation path
+        }]
+      });
+
+      return {
+        success: true,
+        walletId: response.walletId,
+        address: response.addresses[0],
+        publicKey: response.publicKeys[0]
+      };
+    } catch (error) {
+      logger.error('Turnkey wallet creation failed:', error);
+      return { success: false, error: 'Wallet creation failed' };
+    }
+  }
+
+  private deriveEthereumAddress(publicKey: string): string {
+    // Implement Ethereum address derivation from public key
+    // Using the same logic as in the existing Web3Auth middleware
+    // ... (implementation details)
+    return address;
+  }
+}
+```
+
+### 3. DFNS Integration Service
+
+**File**: `api/services/dfns.service.ts`
+
+```typescript
+import { DfnsApiClient } from '@dfns/sdk-ts';
+
+export class DfnsService implements WalletProviderInterface {
+  private client: DfnsApiClient;
+
+  constructor() {
+    this.client = new DfnsApiClient({
+      appId: process.env.DFNS_APP_ID!,
+      authToken: process.env.DFNS_AUTH_TOKEN!,
+      baseUrl: 'https://api.dfns.co'
+    });
+  }
+
+  async authenticateUser(token: string): Promise<AuthResult> {
+    try {
+      // Verify DFNS token and extract user information
+      const userInfo = await this.client.auth.verifyToken(token);
+      
+      // Get user's wallets
+      const wallets = await this.client.wallets.listWallets({
+        userId: userInfo.userId
+      });
+
+      const primaryWallet = wallets.find(w => w.network === 'Polygon') || wallets[0];
+
+      return {
+        success: true,
+        user: {
+          providerId: userInfo.userId,
+          walletId: primaryWallet.walletId,
+          publicKey: primaryWallet.publicKey,
+          walletAddress: primaryWallet.address,
+          provider: 'dfns'
+        }
+      };
+    } catch (error) {
+      logger.error('DFNS authentication failed:', error);
+      return { success: false, error: 'DFNS authentication failed' };
+    }
+  }
+
+  async createWallet(userId: string): Promise<WalletResult> {
+    try {
+      const wallet = await this.client.wallets.createWallet({
+        network: 'Polygon',
+        name: `penomo-wallet-${userId}`,
+        userId: userId
+      });
+
+      return {
+        success: true,
+        walletId: wallet.walletId,
+        address: wallet.address,
+        publicKey: wallet.publicKey
+      };
+    } catch (error) {
+      logger.error('DFNS wallet creation failed:', error);
+      return { success: false, error: 'Wallet creation failed' };
+    }
+  }
+
+  async signTransaction(userId: string, transaction: any): Promise<SignatureResult> {
+    try {
+      // ERC-3643 compliant transaction signing
+      const signature = await this.client.wallets.signTransaction({
+        walletId: transaction.walletId,
+        body: {
+          kind: 'Evm',
+          to: transaction.to,
+          value: transaction.value,
+          data: transaction.data,
+          nonce: transaction.nonce,
+          gasLimit: transaction.gasLimit,
+          gasPrice: transaction.gasPrice
+        }
+      });
+
+      return {
+        success: true,
+        signature: signature.signedData,
+        transactionHash: signature.transactionHash
+      };
+    } catch (error) {
+      logger.error('DFNS transaction signing failed:', error);
+      return { success: false, error: 'Transaction signing failed' };
+    }
+  }
+}
+```
+
+## Middleware Enhancement
+
+### Updated Authentication Middleware
+
+**File**: `api/middleware/verifyApiKeyOrWalletToken.middleware.ts`
+
+```typescript
+import { WalletProviderService } from '../services/walletProvider.service';
+import { User, Investor } from '../models';
+
+const walletProviderService = new WalletProviderService();
+
+export const verifyApiKeyOrWalletToken = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void | Response> => {
+  try {
+    const apiKey = req.get('X-API-Key');
+    const authHeader = req.headers.authorization;
+    const walletProvider = req.get('X-Wallet-Provider') || 'web3auth'; // Default to Web3Auth
+    const token = authHeader?.split(' ')[1];
+
+    // API Key authentication (unchanged)
+    if (apiKey && apiKey === env.MASTER_API_KEY) {
+      req.isAdmin = true;
+      return next();
+    }
+
+    // Wallet provider authentication
+    if (token) {
+      try {
+        // Determine user type for provider validation
+        const userType = await determineUserType(token, walletProvider);
+        
+        // Authenticate with the specified provider
+        const authResult = await walletProviderService.authenticateWithProvider(
+          walletProvider,
+          token,
+          userType
+        );
+
+        if (!authResult.success) {
+          throw new Error(authResult.error);
+        }
+
+        // Set user information from provider result
+        req.user = {
+          publicAddress: authResult.user.walletAddress,
+          email: authResult.user.email || '',
+          provider: walletProvider,
+          providerId: authResult.user.providerId,
+          walletId: authResult.user.walletId
+        };
+
+        // Log wallet provider activity
+        await logWalletActivity(req.user, walletProvider, 'login');
+
+        return next();
+      } catch (error) {
+        logger.error(`${walletProvider} authentication failed:`, error);
+        return handleResponse(req, res, error as any, null);
+      }
+    }
+
+    // No authentication provided
+    throw new Error(ERROR_CONSTANTS.UNAUTHORIZED.message);
+  } catch (error) {
+    return handleResponse(req, res, error as any, null);
+  }
+};
+
+async function determineUserType(token: string, provider: string): Promise<string> {
+  // For Web3Auth, extract user info from JWT
+  if (provider === 'web3auth') {
+    const { payload } = await jose.jwtVerify(token, JWKS);
+    const user = await User.findOne({ email: payload.email }).populate('investorId');
+    return user?.investorId?.investorType || 'Retail';
+  }
+  
+  // For other providers, implement provider-specific user lookup
+  // This is a simplified version - actual implementation would vary by provider
+  return 'Accredited'; // Default for enterprise providers
+}
+
+async function logWalletActivity(user: any, provider: string, action: string): Promise<void> {
+  try {
+    await WalletProviderActivity.create({
+      userId: user.userId,
+      provider,
+      action,
+      metadata: {
+        walletAddress: user.publicAddress,
+        providerId: user.providerId
+      },
+      success: true
+    });
+  } catch (error) {
+    logger.error('Failed to log wallet activity:', error);
+    // Non-critical error, don't fail the authentication
+  }
+}
+```
+
+## Tokenization Platform Frontend Integration
+
+### 1. Accredited Investor Wallet Provider Selection Component
+
+**File**: Tokenization Platform Frontend components (React/TypeScript)
+
+```typescript
+// WalletProviderSelector.tsx
+interface WalletProviderSelectorProps {
+  userType: 'Retail' | 'Accredited' | 'Institutional';
+  onProviderSelect: (provider: string) => void;
+}
+
+export const WalletProviderSelector: React.FC<WalletProviderSelectorProps> = ({
+  userType,
+  onProviderSelect
+}) => {
+  const [availableProviders, setAvailableProviders] = useState<string[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState('turnkey'); // Default for tokenization platform
+
+  useEffect(() => {
+    // Fetch available providers based on user type
+    fetchAvailableProviders(userType).then(setAvailableProviders);
+  }, [userType]);
+
+  const providerDetails = {
+    // Web3Auth removed from tokenization platform
+    turnkey: {
+      name: 'Turnkey',
+      description: 'High-performance institutional wallet',
+      features: ['50-100x faster signing', 'Enterprise security', 'Passkey auth', 'Accredited investor focused'],
+      recommended: userType === 'Accredited',
+      enterpriseOnly: true,
+      requiresAccreditation: true
+    },
+    dfns: {
+      name: 'DFNS',
+      description: 'Compliance-focused financial wallet',
+      features: ['ERC-3643 compliant', 'Financial institution grade', 'Regulatory ready', 'Full compliance tracking'],
+      recommended: userType === 'Institutional',
+      enterpriseOnly: true,
+      requiresAccreditation: true
+    }
+  };
+
+  return (
+    <div className="wallet-provider-selection">
+      <h3>Select Your Wallet Provider</h3>
+      
+      {availableProviders.map(provider => (
+        <div 
+          key={provider}
+          className={`provider-option ${selectedProvider === provider ? 'selected' : ''}`}
+          onClick={() => setSelectedProvider(provider)}
+        >
+          <div className="provider-header">
+            <h4>{providerDetails[provider].name}</h4>
+            {providerDetails[provider].recommended && (
+              <span className="recommended-badge">Recommended</span>
+            )}
+            {providerDetails[provider].enterpriseOnly && (
+              <span className="enterprise-badge">Enterprise</span>
+            )}
+          </div>
+          
+          <p>{providerDetails[provider].description}</p>
+          
+          <ul>
+            {providerDetails[provider].features.map(feature => (
+              <li key={feature}>{feature}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      
+      <button 
+        onClick={() => onProviderSelect(selectedProvider)}
+        className="continue-button"
+      >
+        Continue with {providerDetails[selectedProvider].name}
+      </button>
+    </div>
+  );
+};
+```
+
+### 2. Provider-Specific Authentication Handlers
+
+```typescript
+// walletAuthHandlers.ts
+export const walletAuthHandlers = {
+  web3auth: async () => {
+    // Existing Web3Auth implementation
+    return await initializeWeb3Auth();
+  },
+  
+  turnkey: async () => {
+    // Turnkey WebAuthn authentication
+    const turnkey = await import('@turnkey/sdk-browser');
+    return await turnkey.authenticate({
+      organizationId: process.env.REACT_APP_TURNKEY_ORG_ID
+    });
+  },
+  
+  dfns: async () => {
+    // DFNS passkey authentication
+    const dfns = await import('@dfns/sdk-browser');
+    return await dfns.login({
+      orgId: process.env.REACT_APP_DFNS_ORG_ID
+    });
+  }
+};
+```
+
+## API Endpoints
+
+### 1. Wallet Provider Management Routes
+
+**File**: `api/routes/walletProvider.routes.ts`
+
+```typescript
+import express from 'express';
+import { verifyApiKeyOrWalletToken } from '../middleware/verifyApiKeyOrWalletToken.middleware';
+import { WalletProviderController } from '../controllers/walletProvider.controller';
+
+const router = express.Router();
+const controller = new WalletProviderController();
+
+// Get available providers for user type
+router.get(
+  '/available-providers',
+  verifyApiKeyOrWalletToken,
+  controller.getAvailableProviders
+);
+
+// Switch wallet provider (accredited/institutional only)
+router.post(
+  '/switch-provider',
+  verifyApiKeyOrWalletToken,
+  controller.switchWalletProvider
+);
+
+// Create wallet with specific provider
+router.post(
+  '/create-wallet/:provider',
+  verifyApiKeyOrWalletToken,
+  controller.createWalletWithProvider
+);
+
+// Get wallet provider activity history
+router.get(
+  '/activity',
+  verifyApiKeyOrWalletToken,
+  controller.getWalletProviderActivity
+);
+
+export default router;
+```
+
+## Environment Variables
+
+### Required Environment Configuration
+
+```bash
+# Web3Auth (existing)
+WEB3AUTH_JWKS=https://api.web3auth.io/jwks
+WEB3AUTH_CLIENT_ID=your_web3auth_client_id
+
+# Turnkey Configuration (NEW)
+TURNKEY_ORGANIZATION_ID=your_turnkey_org_id
+TURNKEY_API_PUBLIC_KEY=your_turnkey_api_public_key
+TURNKEY_API_PRIVATE_KEY=your_turnkey_api_private_key
+TURNKEY_PUBLIC_JWK={"kty":"EC","crv":"P-256",...}
+
+# DFNS Configuration (NEW)
+DFNS_APP_ID=your_dfns_app_id
+DFNS_AUTH_TOKEN=your_dfns_auth_token
+DFNS_ORG_ID=your_dfns_org_id
+DFNS_API_URL=https://api.dfns.co
+
+# Feature Flags (NEW)
+ENABLE_TURNKEY_PROVIDER=true
+ENABLE_DFNS_PROVIDER=true
+DEFAULT_WALLET_PROVIDER=web3auth
+```
+
+## Implementation Timeline
+
+### Phase 1: Foundation (2 weeks)
+- **Week 1**: Database schema extensions, base service interfaces
+- **Week 2**: Wallet provider abstraction service, middleware updates
+
+### Phase 2: Provider Integration (3 weeks)
+- **Week 1**: Turnkey service implementation and testing
+- **Week 2**: DFNS service implementation and testing
+- **Week 3**: Provider switching logic and activity tracking
+
+### Phase 3: Frontend Integration (2 weeks)
+- **Week 1**: Provider selection components, authentication handlers
+- **Week 2**: User experience flows, provider switching UI
+
+### Phase 4: Testing & Deployment (2 weeks)
+- **Week 1**: Comprehensive testing, security audit
+- **Week 2**: Staged deployment, monitoring setup
+
+## Security Considerations
+
+### 1. Provider Validation
+- **User type verification**: Enforce provider restrictions by investor type
+- **Token validation**: Each provider implements its own token verification
+- **Fallback mechanisms**: Graceful degradation when providers are unavailable
+
+### 2. Data Isolation
+- **Provider-specific metadata**: Isolated storage for each provider's data
+- **Cross-provider security**: Prevent data leakage between providers
+- **Activity logging**: Comprehensive audit trail for compliance
+
+### 3. Enterprise Security
+- **Turnkey TEE**: Trusted Execution Environment for high-performance signing
+- **DFNS MPC**: Multi-Party Computation for institutional-grade security
+- **Web3Auth compatibility**: Maintained security standards for all user types
+
+## Success Metrics
+
+### Technical Metrics
+- **Authentication success rate**: >99.5% for all providers
+- **Provider switching success**: >95% success rate
+- **Performance improvements**: <100ms authentication with Turnkey
+- **Error rate**: <0.5% for provider-specific operations
+
+### Business Metrics
+- **Enterprise adoption**: 20%+ of accredited investors using enterprise providers
+- **User satisfaction**: Provider choice increases satisfaction scores
+- **Compliance readiness**: 100% ERC-3643 compatibility through DFNS
+- **Risk reduction**: Multi-provider resilience improves uptime
+
+## Risk Management
+
+### Implementation Risks
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| **Provider API Changes** | High | Version pinning, thorough testing, fallback options |
+| **Authentication Failures** | High | Comprehensive error handling, provider fallbacks |
+| **User Experience Complexity** | Medium | Smart defaults, clear provider recommendations |
+| **Security Vulnerabilities** | Critical | Security audits, provider-specific validation |
+
+### Migration Strategy
+
+1. **Backward Compatibility**: All existing Web3Auth users continue unchanged
+2. **Gradual Rollout**: Enable enterprise providers for accredited users only
+3. **Feature Flags**: Control provider availability through environment variables
+4. **Monitoring**: Real-time alerting for provider-specific issues
+
+## Completion Criteria
+
+### Definition of Done
+- [ ] All three wallet providers (Web3Auth, Turnkey, DFNS) fully integrated
+- [ ] Provider selection based on investor type enforced
+- [ ] Authentication middleware supports all providers
+- [ ] Frontend components for provider selection implemented
+- [ ] Comprehensive test coverage (>90%) for all providers
+- [ ] Security audit completed and approved
+- [ ] Documentation updated for new authentication flows
+- [ ] Monitoring and alerting configured for all providers
+
+### Testing Requirements
+- [ ] Unit tests for all wallet provider services
+- [ ] Integration tests for authentication flows
+- [ ] End-to-end tests for provider switching
+- [ ] Load testing for high-performance providers (Turnkey)
+- [ ] Compliance testing for ERC-3643 compatibility (DFNS)
+- [ ] Security penetration testing
+
+## Next Steps
+
+1. **Technical Discovery** (Week 1): Set up development environments for Turnkey and DFNS
+2. **Architecture Review** (Week 1): Validate approach with engineering team
+3. **Implementation Start** (Week 2): Begin with database schema changes
+4. **Provider Integration** (Weeks 2-4): Implement Turnkey and DFNS services
+5. **Frontend Development** (Weeks 5-6): Build provider selection and switching UI
+6. **Testing & Security** (Weeks 7-8): Comprehensive testing and security audit
+7. **Deployment** (Week 9): Staged rollout to accredited investors
+
+---
+
+**Document Classification**: Technical Planning - Internal Use  
+**Next Review Date**: September 15, 2025  
+**Approval Required**: Engineering Lead, CTO, Security Team

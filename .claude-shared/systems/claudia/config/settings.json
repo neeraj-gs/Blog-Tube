@@ -1,0 +1,21 @@
+{
+  "allowedTools": [
+    "Edit",
+    "Write", 
+    "Read",
+    "Bash(git *)",
+    "Bash(npm *)",
+    "Bash(node *)",
+    "Bash(jq *)",
+    "Bash(curl *)",
+    "Bash(gh *)",
+    "Bash(find *)",
+    "Bash(mkdir *)",
+    "Bash(chmod *)",
+    "Bash(date *)",
+    "Bash(echo *)"
+  ],
+  "autoApprove": [
+    "Read"
+  ]
+}
