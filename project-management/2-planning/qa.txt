@@ -1,0 +1,35 @@
+Questions for Clarification:
+
+  1. Scope & Purpose
+
+  - What specific data needs to be stored on-chain? (transaction records, token metadata, compliance data, audit trails?) -> All of this, plus dynamic machinee data from the solar inverter etc. It needs to be what is called a "golden record"
+  - Is this for the tokenization platform only, or both retail and tokenization platforms? -> only tokenization platform
+  - What's the primary business driver - transparency, immutability, regulatory compliance, or something else? -> streamlining investment process
+
+  2. Technical Architecture
+
+  - Which blockchain(s) should we target? (Ethereum mainnet, L2s like Polygon, private blockchain?) -> avalanche, ethereum, EVM chains
+  - Should we use IPFS for document storage with on-chain references, or direct on-chain storage? ->IPFS
+  - Do we need integration with both ERC3643 Onchain Factory and BMCP, or focus on one? -> Focus on ERC3643, but consider what ifs for integrating with BMCP as well (we dont have any information about their api though)
+
+  3. Data Types & Storage Strategy
+
+  - What types of documents/data: KYC records, transaction history, token compliance data, project documents? ->  all
+  - For sensitive data, do you want encryption before on-chain storage? yes
+  - Should we implement data retention policies or permanent immutable storage? yes, but not for poc
+
+  4. Integration Points
+
+  - How should this integrate with the existing tokenization workflows? -> yes
+  - Should it be automatic (all transactions create on-chain records) or manual/selective? automatic
+  - Do we need real-time on-chain updates or batch processing? can be in batch
+
+  5. Compliance & Privacy
+
+  - Are there specific regulatory requirements driving the on-chain data needs? not sure. research please
+  - How do we handle GDPR/privacy requirements with immutable blockchain storage? not sure, research please
+  - Do accredited investors need different on-chain data handling than general users? not sure, research please
+
+  Based on what I can see from the previous roadmap document, there was mention of IPFS integration and on-chain data management, but I'd like to get your specific requirements before creating the detailed planning document.
+
+  What are your answers to these questions so I can create an accurate planning document?

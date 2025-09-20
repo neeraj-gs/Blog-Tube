@@ -1,0 +1,3 @@
+# Claudia Tickets Log - Append Only
+# Format: One JSON object per line
+# Never delete or modify existing lines - only append new ones

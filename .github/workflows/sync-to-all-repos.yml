@@ -1,0 +1,285 @@
+name: Sync Claude-Shared to All Repositories
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  sync-to-repositories:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        repository: 
+          - 'penomoprotocol/penomo-api'
+          - 'penomoprotocol/penomo-admin-app'
+          - 'penomoprotocol/penomo-raise-app'
+          - 'penomoprotocol/penomo-invest-app'
+          - 'penomoprotocol/penomo-tokenization-engine'
+        branch: ['main', 'staging', 'dev']
+    
+    steps:
+      - name: Checkout target repository (main branch first)
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repository }}
+          ref: main
+          token: ${{ secrets.SYNC_TOKEN }}
+          fetch-depth: 0
+        continue-on-error: true
+
+      - name: Check Repository Access
+        id: repo_access
+        run: |
+          if [ "${{ steps.checkout.outcome }}" != "success" ]; then
+            echo "❌ Repository checkout failed for ${{ matrix.repository }}"
+            echo "This likely means the SYNC_TOKEN does not have access to this repository"
+            echo "accessible=false" >> $GITHUB_OUTPUT
+            echo "Skipping all operations for this repository"
+            exit 0
+          else
+            echo "✅ Repository checkout successful for ${{ matrix.repository }}"
+            echo "accessible=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure Git
+        if: steps.repo_access.outputs.accessible == 'true'
+        run: |
+          git config user.name "Claude Sync Bot"
+          git config user.email "noreply@penomoprotocol.com"
+          
+      - name: Verify Repository Access
+        if: steps.repo_access.outputs.accessible == 'true'
+        run: |
+          echo "🔍 Verifying access to ${{ matrix.repository }}"
+          echo "Current repository: $(git remote get-url origin)"
+          echo "Current branch: $(git branch --show-current)"
+          echo "Repository status:"
+          git status --porcelain
+          echo "Token permissions verification:"
+          # Test if we can list branches (requires read access)
+          git ls-remote --heads origin | head -5 || echo "Warning: Cannot list remote branches"
+
+      - name: Check if target branch exists
+        if: steps.repo_access.outputs.accessible == 'true'
+        id: check_branch
+        run: |
+          if [ "${{ matrix.branch }}" = "main" ]; then
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
+            echo "Target branch is main - proceeding"
+          elif git ls-remote --heads origin ${{ matrix.branch }} | grep -q "refs/heads/${{ matrix.branch }}"; then
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
+            echo "Branch ${{ matrix.branch }} exists remotely"
+          elif git show-ref --verify --quiet refs/heads/${{ matrix.branch }}; then
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
+            echo "Branch ${{ matrix.branch }} exists locally"
+          else
+            echo "branch_exists=false" >> $GITHUB_OUTPUT
+            echo "Branch ${{ matrix.branch }} does not exist - will create it"
+          fi
+
+      - name: Create branch if it doesn't exist
+        if: steps.repo_access.outputs.accessible == 'true' && steps.check_branch.outputs.branch_exists == 'false'
+        run: |
+          echo "Creating branch ${{ matrix.branch }} from main"
+          git checkout -b ${{ matrix.branch }}
+          git push origin ${{ matrix.branch }}
+
+      - name: Switch to target branch
+        if: steps.repo_access.outputs.accessible == 'true' && steps.check_branch.outputs.branch_exists == 'true' && matrix.branch != 'main'
+        run: |
+          git checkout ${{ matrix.branch }}
+          git pull origin ${{ matrix.branch }}
+
+      - name: Check if claude-shared subtree exists
+        if: steps.repo_access.outputs.accessible == 'true'
+        id: check_subtree
+        run: |
+          if git log --oneline --grep="git-subtree-dir: .claude-shared" | head -1; then
+            echo "subtree_exists=true" >> $GITHUB_OUTPUT
+            echo "Claude-shared subtree exists"
+          else
+            echo "subtree_exists=false" >> $GITHUB_OUTPUT
+            echo "Claude-shared subtree does not exist"
+          fi
+
+      - name: Add claude-shared subtree (if not exists)
+        if: steps.repo_access.outputs.accessible == 'true' && steps.check_subtree.outputs.subtree_exists == 'false'
+        run: |
+          echo "Adding claude-shared subtree to ${{ matrix.repository }}:${{ matrix.branch }}"
+          git subtree add --prefix=.claude-shared \
+            https://github.com/penomoprotocol/claude-shared.git main --squash \
+            -m "feat: add claude-shared subtree to ${{ matrix.branch }} branch
+
+          Auto-synced from claude-shared repository
+          
+          Repository: ${{ matrix.repository }}
+          Branch: ${{ matrix.branch }}
+          
+          🤖 Generated with Claude Sync Bot" || {
+            echo "Failed to add subtree, checking if directory exists"
+            if [ -d ".claude-shared" ]; then
+              echo "Directory .claude-shared already exists, skipping subtree add"
+            else
+              echo "Error adding subtree and directory doesn't exist - exiting"
+              exit 1
+            fi
+          }
+
+      - name: Pull latest claude-shared updates (if exists)  
+        if: steps.repo_access.outputs.accessible == 'true' && steps.check_subtree.outputs.subtree_exists == 'true'
+        run: |
+          echo "Pulling claude-shared updates for ${{ matrix.repository }}:${{ matrix.branch }}"
+          git subtree pull --prefix=.claude-shared \
+            https://github.com/penomoprotocol/claude-shared.git main --squash \
+            -m "sync: update claude-shared on ${{ matrix.branch }} branch
+
+          Auto-synced from claude-shared repository
+          
+          Repository: ${{ matrix.repository }}
+          Branch: ${{ matrix.branch }}
+          
+          🤖 Generated with Claude Sync Bot" || {
+            echo "Subtree pull failed, attempting to resolve conflicts"
+            git status
+            echo "Checking if there are unresolved conflicts..."
+            if git diff --name-only --diff-filter=U | grep -q .; then
+              echo "Found unresolved conflicts - automatic resolution needed"
+              git checkout --theirs .claude-shared/
+              git add .claude-shared/
+              git commit -m "resolve: auto-resolve claude-shared conflicts
+
+              Automatically resolved conflicts by accepting claude-shared changes
+              
+              Repository: ${{ matrix.repository }}
+              Branch: ${{ matrix.branch }}
+              
+              🤖 Generated with Claude Sync Bot"
+            else
+              echo "No conflicts found but subtree pull failed - investigating"
+              git log --oneline -5
+              exit 1
+            fi
+          }
+
+      - name: Make sync script executable
+        if: steps.repo_access.outputs.accessible == 'true'
+        run: |
+          echo "Making sync scripts executable..."
+          if [ -f ".claude-shared/sync-all-shared-commands.sh" ]; then
+            chmod +x .claude-shared/sync-all-shared-commands.sh
+            echo "Made sync-all-shared-commands.sh executable"
+          fi
+          if [ -f ".claude-shared/sync-claudia.sh" ]; then
+            chmod +x .claude-shared/sync-claudia.sh  
+            echo "Made sync-claudia.sh executable"
+          fi
+
+      - name: Sync claude-shared to .claude directory
+        if: steps.repo_access.outputs.accessible == 'true'
+        id: sync_script
+        run: |
+          echo "Executing sync script for ${{ matrix.repository }}:${{ matrix.branch }}"
+          if [ -f ".claude-shared/sync-all-shared-commands.sh" ]; then
+            echo "Using sync-all-shared-commands.sh"
+            ./.claude-shared/sync-all-shared-commands.sh || {
+              echo "Sync script failed - checking output"
+              ls -la .claude-shared/
+              exit 1
+            }
+          elif [ -f ".claude-shared/sync-claudia.sh" ]; then
+            echo "Using sync-claudia.sh"
+            ./.claude-shared/sync-claudia.sh || {
+              echo "Sync script failed - checking output"
+              ls -la .claude-shared/
+              exit 1
+            }
+          else
+            echo "Warning: No sync scripts found - listing .claude-shared contents"
+            ls -la .claude-shared/
+            echo "Skipping sync step for ${{ matrix.repository }}:${{ matrix.branch }}"
+            echo "skip_sync=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for changes
+        if: steps.repo_access.outputs.accessible == 'true'
+        id: check_changes
+        run: |
+          if [ "${{ steps.sync_script.outputs.skip_sync }}" = "true" ]; then
+            echo "changes_detected=false" >> $GITHUB_OUTPUT
+            echo "Skipping change detection due to sync script issues"
+          elif [ -n "$(git status --porcelain)" ]; then
+            echo "changes_detected=true" >> $GITHUB_OUTPUT
+            echo "Changes detected - will commit and push"
+          else
+            echo "changes_detected=false" >> $GITHUB_OUTPUT
+            echo "No changes detected - nothing to commit"
+          fi
+
+      - name: Commit and push changes
+        if: steps.repo_access.outputs.accessible == 'true' && steps.check_changes.outputs.changes_detected == 'true'
+        run: |
+          echo "Committing and pushing changes for ${{ matrix.repository }}:${{ matrix.branch }}"
+          git add .
+          
+          # Show what we're about to commit
+          echo "Files to be committed:"
+          git diff --cached --name-only
+          
+          git commit -m "sync: update Claudia system from claude-shared
+
+          Auto-synced from claude-shared repository to ${{ matrix.branch }} branch
+          
+          Repository: ${{ matrix.repository }}
+          Branch: ${{ matrix.branch }}
+          Triggered by: ${{ github.event.head_commit.message }}
+          
+          🤖 Generated with Claude Sync Bot" || {
+            echo "Commit failed - checking git status"
+            git status
+            exit 1
+          }
+          
+          git push origin ${{ matrix.branch }} || {
+            echo "Push failed - attempting to pull and retry"
+            git pull origin ${{ matrix.branch }} --rebase || {
+              echo "Failed to pull and rebase"
+              git status
+              exit 1
+            }
+            git push origin ${{ matrix.branch }} || {
+              echo "Push failed again after rebase"
+              exit 1
+            }
+          }
+
+      - name: Report sync status
+        if: always()
+        run: |
+          if [ "${{ steps.repo_access.outputs.accessible }}" != "true" ]; then
+            echo "🔐 Repository access denied for ${{ matrix.repository }}"
+            echo "   Check SYNC_TOKEN permissions or repository visibility"
+            echo "   Skipped all sync operations for this repository"
+          elif [ "${{ steps.check_branch.outputs.branch_exists }}" == "false" ]; then
+            echo "📝 Created new branch ${{ matrix.branch }} in ${{ matrix.repository }}"
+          elif [ "${{ steps.check_changes.outputs.changes_detected }}" == "true" ]; then
+            echo "✅ Successfully synced claude-shared to ${{ matrix.repository }}:${{ matrix.branch }}"
+          elif [ "${{ steps.check_changes.outputs.changes_detected }}" == "false" ]; then
+            echo "ℹ️  No changes needed for ${{ matrix.repository }}:${{ matrix.branch }}"
+          else
+            echo "⚠️  Sync process may have encountered issues for ${{ matrix.repository }}:${{ matrix.branch }}"
+          fi
+
+  notify-completion:
+    runs-on: ubuntu-latest
+    needs: sync-to-repositories
+    if: always()
+    steps:
+      - name: Notify sync completion
+        run: |
+          echo "🚀 Claude-shared sync workflow completed!"
+          echo "Processed repositories: penomo-api, penomo-admin-app, penomo-raise-app, penomo-invest-app, penomo-tokenization-engine"
+          echo "Processed branches: main, staging, dev"
+          echo "Total sync operations: 15 (5 repos × 3 branches)"

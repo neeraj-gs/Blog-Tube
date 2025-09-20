@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(git mv:*)"
+    ],
+    "deny": []
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "token": "PLACEHOLDER_FOR_NOTION_INTEGRATION_TOKEN",
+  "databases": {
+    "tickets": "NOTION_TICKETS_DATABASE_ID",
+    "requirements": "NOTION_REQUIREMENTS_DATABASE_ID",
+    "commits": "NOTION_COMMITS_DATABASE_ID"
+  },
+  "workspace_id": "NOTION_WORKSPACE_ID", 
+  "api_version": "2022-06-28",
+  "settings": {
+    "autoAssign": true,
+    "syncEnabled": true,
+    "statusMapping": {
+      "pending": "To Do",
+      "in_progress": "In Progress", 
+      "testing": "Testing",
+      "completed": "Done",
+      "blocked": "Blocked"
+    },
+    "priorityMapping": {
+      "low": "Low",
+      "medium": "Medium", 
+      "high": "High",
+      "critical": "Critical"
+    }
+  },
+  "schema": {
+    "tickets": {
+      "title": "Ticket ID",
+      "properties": [
+        "Title",
+        "Status", 
+        "Priority",
+        "Type",
+        "Requirement",
+        "GitHub Issue",
+        "Assignee",
+        "Created Date",
+        "Completed Date",
+        "Estimated Hours",
+        "Commit Hash",
+        "PR Number"
+      ]
+    },
+    "requirements": {
+      "title": "Requirement ID",
+      "properties": [
+        "Title",
+        "Status",
+        "Priority", 
+        "Category",
+        "Created Date",
+        "Stakeholder"
+      ]
+    }
+  }
+}

@@ -1,0 +1,18 @@
+# Local environment configuration - contains secrets
+local.env
+
+# Temporary files
+*.tmp
+*.temp
+
+# Local development overrides
+local-config.json
+dev-overrides.json
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
