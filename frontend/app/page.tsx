@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   PlayCircle,
   FileText,
@@ -88,6 +89,13 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      {/* Header with Theme Toggle */}
+      <div className="container mx-auto px-4 py-4">
+        <div className="flex justify-end">
+          <ThemeToggle />
+        </div>
+      </div>
+
       {/* Hero Section */}
       <div className="container mx-auto px-4 py-20 text-center">
         <Badge className="mb-4" variant="secondary">
