@@ -3,6 +3,23 @@
 ## Project Overview
 BlogTube is a full-stack application that transforms YouTube videos and text prompts into SEO-optimized blog posts using AI. The system features a ChatGPT-like interface, markdown editor, and comprehensive blog management.
 
+## 🚨 CRITICAL: Git Operations Policy
+
+**NEVER commit or push code without explicit user consent.**
+
+- ❌ **FORBIDDEN**: Automatically running `git commit` or `git push` commands
+- ❌ **FORBIDDEN**: Committing changes during problem-solving or refactoring
+- ✅ **REQUIRED**: Always ask for explicit permission before any git operations
+- ✅ **REQUIRED**: Wait for user confirmation: "commit and push" or "please commit these changes"
+
+**This applies to ALL git operations including:**
+- `git add` (only with permission)
+- `git commit` (NEVER without explicit consent)
+- `git push` (NEVER without explicit consent)
+- Any automated git workflows
+
+**Remember**: The user maintains full control over when and how their code is committed to version control.
+
 ## Tech Stack
 
 ### Frontend (Next.js App)
@@ -239,6 +256,134 @@ npm run start    # Start production server
 - Use pagination for large datasets
 - Monitor API response times
 - Optimize database queries
+
+## Claudia Automation System - MANDATORY USAGE
+
+**ALL ENGINEERS MUST USE CLAUDIA** for feature development, bug fixes, and project management. This is a company-wide requirement to ensure:
+- Complete traceability from requirements to deployment
+- Consistent development methodology (TDD)
+- Automated project management integration
+- Quality assurance and audit compliance
+
+### Sprint UUID Hierarchical System (Critical)
+
+**All Claudia UUIDs follow strict hierarchical inheritance:**
+
+**Format:**
+- **Sprints:** `XXX` (e.g., `030`, `031`, `032`)
+- **Requirements:** `XXX-YY` (e.g., `030-01`, `030-02`)
+- **Tickets:** `XXX-YY-ZZ` (e.g., `030-01-01`, `030-01-02`)
+
+**Inheritance Rules:**
+- **Always use numbered sprint IDs** (030, 031, 032, etc.)
+- **Hierarchy:** Sprint → Requirement → Ticket
+- **Implementation timing irrelevant** - children keep parent's sprint prefix
+
+**Example Chain:**
+```
+Sprint 030 → Requirement 030-01 → Ticket 030-01-01
+```
+
+### Core Claudia Workflow (Required)
+
+```bash
+# 1. ALWAYS start with sprint creation
+/claudia:sprint:create "030"
+# → Creates: Sprint 030
+
+# 2. Define requirements for sprint
+/claudia:requirements:define "Authentication System" --sprint 030
+# → Generates: 030-01-auth-system
+
+# 3. Break requirements into actionable tickets
+/claudia:tickets:create "030-01" --env dev
+# → Generates: 030-01-01-implementation
+
+# 4. Assign to GitHub Issues + Notion
+/claudia:tickets:assign "030-01-01"
+
+# 5. Implement using TDD methodology
+/claudia:implement:manual "030-01-01"  # Collaborative mode (recommended)
+/claudia:implement:auto "030-01-01"    # Fully automated mode
+
+# 6. Commit with full traceability
+/claudia:commit "030-01-01" "feat: implement user authentication system"
+
+# 7. Create pull request
+/claudia:pr:create "030-01-01"
+
+# 8. Mark ticket complete (closes GitHub issue)
+/claudia:tickets:complete "030-01-01"
+```
+
+### GitHub Integration Commands
+
+```bash
+# Pull all GitHub issues for current repository
+/claudia:tickets:list --source github
+
+# Create GitHub issue from ticket
+/claudia:tickets:assign "030-01-01" --create-issue
+
+# Update GitHub issue status
+/claudia:tickets:update "030-01-01" --status "in-progress"
+
+# Close GitHub issue when ticket complete
+/claudia:tickets:complete "030-01-01" --close-issue
+```
+
+### Monitoring & Compliance
+- **System monitoring** tracks all Claudia usage across teams
+- **Compliance reports** generated weekly for management review
+- **Quality metrics** measured: test coverage, TDD compliance, traceability
+- **Non-compliance** will be flagged in performance reviews
+
+### Quick Status Checks
+- `/claudia:utils:status` - View your current work and system health
+- `/claudia:utils:report` - Generate comprehensive traceability report
+
+## Claudia System Synchronization (Required)
+
+**BEFORE starting work**, engineers must sync the latest Claudia system:
+
+```bash
+# 1. Pull latest from claude-shared repository
+git subtree pull --prefix=.claude-shared \
+  https://github.com/penomoprotocol/claude-shared.git main --squash
+
+# 2. Sync all shared commands to local .claude/ directory
+./.claude-shared/scripts/sync-all.sh
+```
+
+### Multi-Branch Sync Process
+
+To keep all branches (main, staging, dev) synchronized:
+
+```bash
+# Sync across all branches
+for branch in main staging dev; do
+  git checkout $branch
+  git subtree pull --prefix=.claude-shared \
+    https://github.com/penomoprotocol/claude-shared.git main --squash
+  ./.claude-shared/scripts/sync-all.sh
+  git add .claude/
+  git commit -m "sync: update Claudia system from claude-shared"
+done
+```
+
+### Pushing Claudia Updates
+
+When modifying the Claudia system:
+
+```bash
+# 1. Sync and commit local changes
+git add .claude-shared/
+git commit -m "feat(claudia): update automation system"
+
+# 2. Push back to claude-shared repository
+git subtree push --prefix=.claude-shared \
+  https://github.com/penomoprotocol/claude-shared.git main
+```
 
 ---
 
