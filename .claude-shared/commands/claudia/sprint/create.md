@@ -16,17 +16,21 @@ Create a new sprint document with numbered identifier and initialize sprint trac
 !bash -c '
 SPRINT_NUMBER="$ARGUMENTS"
 
+# Clean quotes from input
+SPRINT_NUMBER=$(echo "$SPRINT_NUMBER" | sed "s/[\"\']//g")
+
 # Validate sprint number format (3 digits)
 if [[ ! "$SPRINT_NUMBER" =~ ^[0-9]{3}$ ]]; then
     echo "❌ ERROR: Sprint number must be 3 digits (e.g., 030, 031, 032)"
     echo "Usage: /claudia:sprint:create \"030\""
+    echo "Received: $ARGUMENTS (cleaned: $SPRINT_NUMBER)"
     exit 1
 fi
 
 # Check if sprint already exists
-if [ -f "docs/3-sprints/$SPRINT_NUMBER.md" ]; then
+if [ -f ".claude-shared/project-management/3-sprints/$SPRINT_NUMBER.md" ]; then
     echo "❌ ERROR: Sprint $SPRINT_NUMBER already exists"
-    echo "Existing file: docs/3-sprints/$SPRINT_NUMBER.md"
+    echo "Existing file: .claude-shared/project-management/3-sprints/$SPRINT_NUMBER.md"
     exit 1
 fi
 
@@ -44,7 +48,8 @@ echo ""
 echo "📄 Creating sprint document..."
 
 # Create sprint document
-cat > "docs/3-sprints/$SPRINT_NUMBER.md" << EOF
+mkdir -p .claude-shared/project-management/3-sprints
+cat > ".claude-shared/project-management/3-sprints/$SPRINT_NUMBER.md" << EOF
 # Sprint $SPRINT_NUMBER
 
 **Sprint Number:** $SPRINT_NUMBER  
@@ -82,7 +87,7 @@ cat > "docs/3-sprints/$SPRINT_NUMBER.md" << EOF
 *Created by Claudia Automation System - $TIMESTAMP*
 EOF
 
-echo "✅ Sprint document created: docs/3-sprints/$SPRINT_NUMBER.md"
+echo "✅ Sprint document created: .claude-shared/project-management/3-sprints/$SPRINT_NUMBER.md"
 '
 
 ## Initialize Sprint Logging
@@ -113,7 +118,7 @@ echo "✅ **Sprint Creation Complete**"
 echo ""
 echo "**Sprint Details:**"
 echo "- **Number:** $SPRINT_NUMBER"
-echo "- **Document:** docs/3-sprints/$SPRINT_NUMBER.md"
+echo "- **Document:** .claude-shared/project-management/3-sprints/$SPRINT_NUMBER.md"
 echo "- **Status:** Active"
 echo "- **Requirements:** 0 (ready for requirements creation)"
 echo ""

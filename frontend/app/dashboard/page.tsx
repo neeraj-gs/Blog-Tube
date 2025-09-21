@@ -13,7 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, PlayCircle, FileText, Sparkles, Copy, Download, Edit } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ThemeToggle } from "@/components/theme-toggle";
 
 interface Message {
   id: string;
@@ -231,7 +230,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="container mx-auto p-4 max-w-6xl">
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">
@@ -246,7 +245,6 @@ export default function DashboardPage() {
               <Sparkles className="w-3 h-3 mr-1" />
               {credits.limit - credits.used} credits remaining
             </Badge>
-            <ThemeToggle />
             <Avatar>
               <AvatarImage src={user?.imageUrl} />
               <AvatarFallback>{user?.firstName?.[0]}</AvatarFallback>
