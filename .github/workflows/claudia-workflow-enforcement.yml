@@ -1,0 +1,448 @@
+name: Claudia Workflow Enforcement
+
+on:
+  push:
+    branches: [ main, develop, 'feature/*', 'hotfix/*' ]
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  checks: write
+  statuses: write
+
+jobs:
+  claudia-workflow-validation:
+    name: 🤖 Claudia Workflow Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better validation
+
+      - name: 🔍 Validate Claudia Workflow Compliance
+        id: validate-workflow
+        run: |
+          echo "🔍 Starting Claudia workflow validation..."
+
+          # Colors for output
+          RED='\033[0;31m'
+          GREEN='\033[0;32m'
+          YELLOW='\033[1;33m'
+          BLUE='\033[0;34m'
+          NC='\033[0m'
+
+          # Configuration
+          BYPASS_FILE=".github/emergency-bypass.active"
+          AUDIT_DIR=".claude-shared/project-management/data"
+          VALIDATION_PASSED=true
+          VALIDATION_MESSAGES=()
+
+          # Check for emergency bypass
+          if [ -f "$BYPASS_FILE" ]; then
+            echo -e "${YELLOW}🚨 Emergency bypass detected${NC}"
+            if grep -q "AUTHORIZED=true" "$BYPASS_FILE" 2>/dev/null; then
+              echo -e "${GREEN}✅ Emergency bypass authorized - workflow validation skipped${NC}"
+              echo "bypass_active=true" >> $GITHUB_OUTPUT
+              echo "validation_result=bypassed" >> $GITHUB_OUTPUT
+              exit 0
+            else
+              echo -e "${RED}❌ Invalid emergency bypass file${NC}"
+              VALIDATION_PASSED=false
+              VALIDATION_MESSAGES+=("Invalid emergency bypass authorization")
+            fi
+          fi
+
+          echo "bypass_active=false" >> $GITHUB_OUTPUT
+
+          # Function to check commit compliance
+          validate_commits() {
+            local branch_commits
+            local claudia_commits=0
+            local total_commits=0
+
+            # Get commits in this push/PR
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+              # For PR, check commits between base and head
+              branch_commits=$(git rev-list --no-merges $GITHUB_BASE_REF..$GITHUB_HEAD_REF 2>/dev/null || git rev-list --no-merges HEAD~10..HEAD)
+            else
+              # For push, check recent commits
+              branch_commits=$(git rev-list --no-merges HEAD~5..HEAD 2>/dev/null || git rev-list --no-merges HEAD)
+            fi
+
+            echo "📝 Validating commit compliance..."
+
+            for commit in $branch_commits; do
+              total_commits=$((total_commits + 1))
+              commit_msg=$(git log -1 --pretty=format:"%s%n%b" "$commit")
+
+              # Check for Claudia signature
+              if echo "$commit_msg" | grep -q "🤖 Generated with \[Claude Code\]"; then
+                claudia_commits=$((claudia_commits + 1))
+                echo -e "${GREEN}✅ Commit $commit: Claudia-compliant${NC}"
+              else
+                echo -e "${YELLOW}⚠️ Commit $commit: Non-Claudia commit detected${NC}"
+                echo "  Message: $(echo "$commit_msg" | head -1)"
+
+                # Check if it's a conventional commit (more lenient)
+                if echo "$commit_msg" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|emergency|hotfix)(\(.+\))?: .+"; then
+                  echo -e "${YELLOW}  └─ Conventional commit format detected${NC}"
+                else
+                  echo -e "${RED}  └─ Non-standard commit format${NC}"
+                  VALIDATION_MESSAGES+=("Non-standard commit: $commit")
+                fi
+              fi
+            done
+
+            # Calculate compliance rate
+            local compliance_rate=0
+            if [ $total_commits -gt 0 ]; then
+              compliance_rate=$((claudia_commits * 100 / total_commits))
+            fi
+
+            echo "compliance_rate=$compliance_rate" >> $GITHUB_OUTPUT
+            echo "claudia_commits=$claudia_commits" >> $GITHUB_OUTPUT
+            echo "total_commits=$total_commits" >> $GITHUB_OUTPUT
+
+            echo "📊 Compliance Report:"
+            echo "  Total commits: $total_commits"
+            echo "  Claudia commits: $claudia_commits"
+            echo "  Compliance rate: $compliance_rate%"
+
+            # Set compliance threshold (can be adjusted)
+            local required_rate=80
+            if [ $compliance_rate -lt $required_rate ]; then
+              VALIDATION_MESSAGES+=("Compliance rate ($compliance_rate%) below threshold ($required_rate%)")
+              return 1
+            fi
+
+            return 0
+          }
+
+          # Function to validate PR compliance
+          validate_pr_compliance() {
+            if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
+              return 0
+            fi
+
+            echo "🔍 Validating PR compliance..."
+
+            # Check if PR was created via Claudia
+            pr_body=$(cat "$GITHUB_EVENT_PATH" | jq -r '.pull_request.body // ""')
+            pr_title=$(cat "$GITHUB_EVENT_PATH" | jq -r '.pull_request.title // ""')
+
+            if echo "$pr_body" | grep -q "/claudia:pr:create"; then
+              echo -e "${GREEN}✅ PR created via Claudia workflow${NC}"
+            elif echo "$pr_body" | grep -q "🤖 Generated with.*Claude Code"; then
+              echo -e "${GREEN}✅ PR contains Claudia signature${NC}"
+            else
+              echo -e "${YELLOW}⚠️ PR may not have been created via Claudia workflow${NC}"
+
+              # Check if it's a hotfix/emergency PR
+              if echo "$pr_title" | grep -qiE "(emergency|hotfix|critical)"; then
+                echo -e "${YELLOW}  └─ Emergency PR detected - more lenient validation${NC}"
+              else
+                VALIDATION_MESSAGES+=("PR not created via Claudia workflow")
+              fi
+            fi
+
+            # Check for linked issues
+            if echo "$pr_body" | grep -qE "(closes?|fixes?|resolves?) #[0-9]+"; then
+              echo -e "${GREEN}✅ PR links to GitHub issue${NC}"
+            else
+              echo -e "${YELLOW}⚠️ PR does not link to GitHub issue${NC}"
+              VALIDATION_MESSAGES+=("PR should link to GitHub issue")
+            fi
+          }
+
+          # Function to check audit trail
+          validate_audit_trail() {
+            echo "📋 Validating audit trail..."
+
+            if [ ! -d "$AUDIT_DIR" ]; then
+              echo -e "${YELLOW}⚠️ No audit directory found${NC}"
+              return 0
+            fi
+
+            # Check for recent Claudia activity
+            local recent_activity=false
+            local cutoff_time=$(date -d '24 hours ago' -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -v-24H -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
+
+            for audit_file in "$AUDIT_DIR"/*.jsonl; do
+              if [ -f "$audit_file" ] && [ "$(wc -l < "$audit_file")" -gt 0 ]; then
+                if grep "$cutoff_time" "$audit_file" 2>/dev/null | grep -q "claudia:"; then
+                  recent_activity=true
+                  break
+                fi
+              fi
+            done
+
+            if [ "$recent_activity" = "true" ]; then
+              echo -e "${GREEN}✅ Recent Claudia activity detected in audit trail${NC}"
+            else
+              echo -e "${YELLOW}⚠️ No recent Claudia activity in audit trail${NC}"
+              VALIDATION_MESSAGES+=("Limited recent Claudia activity in audit logs")
+            fi
+          }
+
+          # Run validations
+          echo "🚀 Starting comprehensive workflow validation..."
+
+          if ! validate_commits; then
+            VALIDATION_PASSED=false
+          fi
+
+          validate_pr_compliance
+          validate_audit_trail
+
+          # Set outputs
+          if [ "$VALIDATION_PASSED" = "true" ] && [ ${#VALIDATION_MESSAGES[@]} -eq 0 ]; then
+            echo "validation_result=passed" >> $GITHUB_OUTPUT
+            echo -e "${GREEN}🎉 Claudia workflow validation PASSED${NC}"
+          elif [ "$VALIDATION_PASSED" = "true" ]; then
+            echo "validation_result=passed_with_warnings" >> $GITHUB_OUTPUT
+            echo -e "${YELLOW}⚠️ Claudia workflow validation PASSED with warnings${NC}"
+          else
+            echo "validation_result=failed" >> $GITHUB_OUTPUT
+            echo -e "${RED}❌ Claudia workflow validation FAILED${NC}"
+          fi
+
+          # Output validation messages
+          if [ ${#VALIDATION_MESSAGES[@]} -gt 0 ]; then
+            echo "validation_messages<<EOF" >> $GITHUB_OUTPUT
+            printf '%s\n' "${VALIDATION_MESSAGES[@]}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 📝 Create validation summary
+        if: always()
+        run: |
+          echo "## 🤖 Claudia Workflow Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.validate-workflow.outputs.validation_result }}" = "bypassed" ]; then
+            echo "🚨 **Status**: Emergency Bypass Active" >> $GITHUB_STEP_SUMMARY
+            echo "- Workflow validation was bypassed due to authorized emergency" >> $GITHUB_STEP_SUMMARY
+            echo "- Post-incident review required" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.validate-workflow.outputs.validation_result }}" = "passed" ]; then
+            echo "✅ **Status**: Validation Passed" >> $GITHUB_STEP_SUMMARY
+            echo "- All commits comply with Claudia workflow" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.validate-workflow.outputs.validation_result }}" = "passed_with_warnings" ]; then
+            echo "⚠️ **Status**: Passed with Warnings" >> $GITHUB_STEP_SUMMARY
+            echo "- Most commits comply, but some issues detected" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status**: Validation Failed" >> $GITHUB_STEP_SUMMARY
+            echo "- Commits do not comply with mandatory Claudia workflow" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Compliance Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Commits**: ${{ steps.validate-workflow.outputs.total_commits }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Claudia Commits**: ${{ steps.validate-workflow.outputs.claudia_commits }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Compliance Rate**: ${{ steps.validate-workflow.outputs.compliance_rate }}%" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${{ steps.validate-workflow.outputs.validation_messages }}" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Issues Detected" >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.validate-workflow.outputs.validation_messages }}" | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Claudia Workflow Commands" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo '# Create requirements' >> $GITHUB_STEP_SUMMARY
+          echo '/claudia:requirements:define "description"' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '# Create GitHub issue' >> $GITHUB_STEP_SUMMARY
+          echo '/claudia:issues:create "req-uuid"' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '# Implement changes' >> $GITHUB_STEP_SUMMARY
+          echo '/claudia:implement:manual "req-uuid"' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '# Commit changes' >> $GITHUB_STEP_SUMMARY
+          echo '/claudia:commit "issue-id"' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '# Create PR' >> $GITHUB_STEP_SUMMARY
+          echo '/claudia:pr:create "issue-id"' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: 💬 Comment on PR with validation results
+        if: github.event_name == 'pull_request' && (steps.validate-workflow.outputs.validation_result == 'failed' || steps.validate-workflow.outputs.validation_result == 'passed_with_warnings')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const result = '${{ steps.validate-workflow.outputs.validation_result }}';
+            const messages = `${{ steps.validate-workflow.outputs.validation_messages }}`;
+            const complianceRate = '${{ steps.validate-workflow.outputs.compliance_rate }}';
+
+            let emoji, status, color;
+            if (result === 'failed') {
+              emoji = '❌';
+              status = 'Failed';
+              color = 'red';
+            } else {
+              emoji = '⚠️';
+              status = 'Passed with Warnings';
+              color = 'yellow';
+            }
+
+            const body = `## ${emoji} Claudia Workflow Validation ${status}
+
+            **Compliance Rate**: ${complianceRate}%
+
+            ${messages ? `**Issues Detected**:
+            ${messages.split('\n').map(msg => `- ${msg}`).join('\n')}
+
+            ` : ''}**Claudia Workflow Guide**:
+            1. \`/claudia:requirements:define "description"\` - Define requirements
+            2. \`/claudia:issues:create "req-uuid"\` - Create GitHub issue
+            3. \`/claudia:implement:manual "req-uuid"\` - Implement changes
+            4. \`/claudia:commit "issue-id"\` - Commit via Claudia
+            5. \`/claudia:pr:create "issue-id"\` - Create PR via Claudia
+
+            **For Emergency Situations**:
+            Use \`.github/scripts/create-emergency-bypass.sh\` to create authorized bypass.
+
+            ---
+            🤖 Automated validation by Claudia Workflow System`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: ❌ Fail if validation failed
+        if: steps.validate-workflow.outputs.validation_result == 'failed' && steps.validate-workflow.outputs.bypass_active == 'false'
+        run: |
+          echo "❌ Claudia workflow validation failed"
+          echo "This pull request does not comply with mandatory Claudia workflow requirements"
+          echo ""
+          echo "Please ensure all commits follow the Claudia workflow:"
+          echo "1. Use /claudia:commit for all commits"
+          echo "2. Use /claudia:pr:create for pull requests"
+          echo "3. Maintain proper audit trail"
+          echo ""
+          echo "For emergency situations, use emergency bypass procedures"
+          exit 1
+
+  code-quality-check:
+    name: 🔍 Code Quality Check
+    runs-on: ubuntu-latest
+    needs: claudia-workflow-validation
+    if: needs.claudia-workflow-validation.outputs.validation_result != 'failed'
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: |
+          if [ -f package.json ]; then
+            npm ci
+          else
+            echo "No package.json found, skipping npm install"
+          fi
+
+      - name: 🔍 Run ESLint (if configured)
+        if: hashFiles('.eslintrc*') != ''
+        run: |
+          if command -v eslint &> /dev/null; then
+            npm run lint || echo "Linting completed with warnings"
+          else
+            echo "ESLint not configured, skipping"
+          fi
+
+      - name: 🏗️ Build check (if applicable)
+        run: |
+          if [ -f package.json ] && npm run | grep -q "build"; then
+            npm run build
+          else
+            echo "No build script found, skipping"
+          fi
+
+  security-scan:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    needs: claudia-workflow-validation
+    if: needs.claudia-workflow-validation.outputs.validation_result != 'failed'
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Run secret scanning
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+
+      - name: 🛡️ Run security audit (npm)
+        if: hashFiles('package-lock.json') != ''
+        run: |
+          npm audit --audit-level high || echo "Security audit completed with warnings"
+
+  audit-trail-check:
+    name: 📋 Audit Trail Verification
+    runs-on: ubuntu-latest
+    needs: claudia-workflow-validation
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📋 Verify audit trail integrity
+        run: |
+          echo "🔍 Verifying Claudia audit trail..."
+
+          AUDIT_DIR=".claude-shared/project-management/data"
+
+          if [ ! -d "$AUDIT_DIR" ]; then
+            echo "⚠️ No audit directory found - may be a new repository"
+            exit 0
+          fi
+
+          # Check audit file integrity
+          audit_files_count=0
+          for audit_file in "$AUDIT_DIR"/*.jsonl; do
+            if [ -f "$audit_file" ]; then
+              audit_files_count=$((audit_files_count + 1))
+
+              # Basic JSON validation
+              if ! cat "$audit_file" | jq empty 2>/dev/null; then
+                echo "❌ Invalid JSON in audit file: $audit_file"
+                exit 1
+              fi
+
+              echo "✅ Valid audit file: $(basename "$audit_file")"
+            fi
+          done
+
+          echo "📊 Audit trail summary:"
+          echo "  - Audit files: $audit_files_count"
+          echo "  - Directory: $AUDIT_DIR"
+
+          if [ $audit_files_count -eq 0 ]; then
+            echo "⚠️ No audit files found - this may indicate a new repository"
+          else
+            echo "✅ Audit trail verified"
+          fi

@@ -1,0 +1,43 @@
+# Sprint Management Project Configuration
+name: "Claudia Sprint Management"
+description: "Sprint-based development workflow with automated tracking"
+
+fields:
+  - name: "Sprint Number"
+    type: "single_select"
+    options:
+      - "001"
+      - "002"
+      - "003"
+      - "004"
+      - "005"
+
+  - name: "Sprint Status"
+    type: "single_select"
+    options:
+      - "Planning"
+      - "Active"
+      - "Review"
+      - "Completed"
+
+  - name: "Requirements Count"
+    type: "number"
+
+  - name: "Tickets Count"
+    type: "number"
+
+  - name: "Completion Percentage"
+    type: "number"
+
+views:
+  - name: "Active Sprints"
+    filter: "Sprint Status:Active"
+  - name: "Sprint Planning"
+    filter: "Sprint Status:Planning"
+  - name: "Sprint Review"
+    filter: "Sprint Status:Review"
+
+automation:
+  - trigger: "issue_labeled"
+    condition: "label:claudia:sprint"
+    action: "add_to_project"
