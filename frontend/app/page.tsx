@@ -16,6 +16,7 @@ import {
   BookOpen,
   TrendingUp,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function Home() {
   const { isSignedIn } = useAuth();
@@ -87,7 +88,30 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
+      {/* Navigation */}
+      <nav className="container mx-auto px-4 py-4 flex justify-between items-center">
+        <div className="font-bold text-xl bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          BlogTube
+        </div>
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          {isSignedIn ? (
+            <Button onClick={() => router.push("/dashboard")}>
+              Go to Dashboard <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => router.push("/sign-in")}>
+                Sign In
+              </Button>
+              <Button onClick={() => router.push("/sign-up")}>
+                Get Started
+              </Button>
+            </div>
+          )}
+        </div>
+      </nav>
 
       {/* Hero Section */}
       <div className="container mx-auto px-4 py-20 text-center">
