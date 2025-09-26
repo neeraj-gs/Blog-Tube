@@ -1,0 +1,43 @@
+{
+  "review_id": "review-1758859618-30",
+  "pr_number": 30,
+  "pr_title": "Implement Theme Toggle",
+  "pr_author": "neeraj-gs",
+  "reviewer": "neeraj-gs",
+  "timestamp": "2025-09-26T04:07:10Z",
+  "pr_url": "https://github.com/neeraj-gs/Blog-Tube/pull/30",
+  "branch_info": {
+    "head": "feature/issue-29-implement-theme-toggle",
+    "base": "main"
+  },
+  "pr_status": {
+    "state": "OPEN",
+    "is_draft": false,
+    "review_decision": "REVIEW_REQUIRED",
+    "mergeable": "MERGEABLE"
+  },
+  "files_analysis": {
+    "total_files": 63,
+    "changed_files": [
+      "frontend/components/theme-toggle.tsx",
+      "frontend/app/layout.tsx", 
+      "frontend/app/dashboard/page.tsx",
+      "frontend/app/page.tsx",
+      "frontend/package.json",
+      "Various Claudia system files"
+    ]
+  },
+  "review_status": "started",
+  "checklist": {
+    "code_quality": "pending",
+    "architecture": "pending",
+    "security": "pending",
+    "testing": "pending",
+    "documentation": "pending"
+  },
+  "next_actions": [
+    "Run automated analysis with /claudia:review:analyze 30",
+    "Perform interactive review with /claudia:review:interactive 30",
+    "Submit review feedback on GitHub"
+  ]
+}

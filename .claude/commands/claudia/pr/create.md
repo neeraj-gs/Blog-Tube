@@ -138,8 +138,9 @@ source /tmp/claudia_pr_context
 
 echo "🚀 Creating Pull Request..."
 
-# Create comprehensive PR body with theme toggle implementation details
-PR_BODY="## 🎯 Overview
+# Create the PR using GitHub CLI with heredoc
+cat << EOF | gh pr create --title "$ISSUE_TITLE" --body-file - --head "$BRANCH_NAME" --base "main"
+## 🎯 Overview
 
 This PR implements: $ISSUE_TITLE
 
@@ -148,93 +149,33 @@ This PR implements: $ISSUE_TITLE
 - **Status:** $ISSUE_STATE
 - **Branch:** \`$BRANCH_NAME\`
 
-## 🚀 Features Implemented
-
-### ✅ Core Components Added
-- **ThemeProvider Component** (\`frontend/components/theme-provider.tsx\`)
-  - Wraps application with next-themes provider
-  - System theme detection and persistence
-
-- **ThemeToggle Component** (\`frontend/components/theme-toggle.tsx\`)
-  - Interactive toggle with smooth animations
-  - Accessible keyboard navigation
-
-### ✅ Integration Points
-- **Root Layout** - ThemeProvider integration
-- **Dashboard Page** - Theme toggle in header
-- **Landing Page** - Theme toggle in header
-
-## 🛠️ Technical Implementation
-- System theme detection with prefers-color-scheme
-- Persistent localStorage theme storage
-- Smooth animations with Tailwind transitions
-- Full accessibility support
-
-## ✅ Requirements Fulfilled
-- Users can toggle between light/dark themes
-- Theme preference persists across sessions
-- Keyboard accessible navigation
-- System theme detection as default
-
-## 📊 Files Changed
-- \`frontend/components/theme-provider.tsx\` (New)
-- \`frontend/components/theme-toggle.tsx\` (New)
-- \`frontend/app/layout.tsx\` (Modified)
-- \`frontend/app/dashboard/page.tsx\` (Modified)
-- \`frontend/app/page.tsx\` (Modified)
-
-## 📖 Original Issue Description
+## 📖 Description
 $ISSUE_BODY
 
-## ✅ Testing Checklist
-- [x] Light/dark theme switching works
-- [x] System theme detection verified
-- [x] Theme persistence across sessions
-- [x] Keyboard accessibility confirmed
-- [x] Mobile responsive design verified
-- [ ] Unit tests (follow-up)
-- [ ] E2E tests (follow-up)
+## ✅ Checklist
+- [ ] Implementation complete
+- [ ] Tests added/updated
+- [ ] Documentation updated
+- [ ] Code review completed
 
 ---
-🤖 **Auto-generated from GitHub issue #$ISSUE_ID**
-**Generated with Claude Code**
+🤖 Auto-generated from issue #$ISSUE_ID
+**Resolves #$ISSUE_ID**
+EOF
 
-**Resolves #$ISSUE_ID**"
-
-# Write PR body to file for proper handling
-echo "$PR_BODY" > /tmp/pr_body_$ISSUE_ID.md
-
-# Create the actual PR
-echo "Executing: gh pr create --title \"$ISSUE_TITLE\" --body-file /tmp/pr_body_$ISSUE_ID.md --head \"$BRANCH_NAME\" --base \"main\""
-
-if gh pr create --title "$ISSUE_TITLE" --body-file "/tmp/pr_body_$ISSUE_ID.md" --head "$BRANCH_NAME" --base "main"; then
+if [ $? -eq 0 ]; then
     echo ""
     echo "✅ SUCCESS! Pull Request created"
 
-    # Get PR information
-    PR_INFO=$(gh pr view --json number,url,title 2>/dev/null)
-    if [ $? -eq 0 ]; then
-        PR_NUMBER=$(echo "$PR_INFO" | jq -r ".number")
-        PR_URL=$(echo "$PR_INFO" | jq -r ".url")
+    # Get PR URL
+    PR_URL=$(gh pr view --json url --jq .url)
+    echo "🔗 View PR: $PR_URL"
+    echo "📝 Issue #$ISSUE_ID linked to PR"
+    echo "🌿 Branch: $BRANCH_NAME"
 
-        echo "📝 PR Number: #$PR_NUMBER"
-        echo "🔗 PR URL: $PR_URL"
-        echo "📝 Issue #$ISSUE_ID linked to PR"
-        echo "🌿 Branch: $BRANCH_NAME"
-
-        echo "PR_URL=$PR_URL" >> /tmp/claudia_pr_context
-        echo "PR_NUMBER=$PR_NUMBER" >> /tmp/claudia_pr_context
-    else
-        echo "⚠️  PR created but could not fetch details"
-    fi
-
-    # Cleanup temp file
-    rm -f "/tmp/pr_body_$ISSUE_ID.md"
+    echo "PR_URL=$PR_URL" >> /tmp/claudia_pr_context
 else
-    echo ""
     echo "❌ Failed to create PR"
-    echo "Please check GitHub CLI authentication and permissions"
-    rm -f "/tmp/pr_body_$ISSUE_ID.md"
     exit 1
 fi
 '
