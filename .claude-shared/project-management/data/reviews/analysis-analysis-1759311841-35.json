@@ -1,0 +1,41 @@
+{
+  "analysis_id": "analysis-1759311841-35",
+  "pr_number": 35,
+  "pr_title": "🤖 Removal of Theme Toggle",
+  "pr_author": "app/github-actions",
+  "analyzer": "neeraj-gs",
+  "timestamp": "2025-10-01T09:45:39Z",
+  "pr_url": "https://github.com/neeraj-gs/Blog-Tube/pull/35",
+  "file_analysis": {
+    "total_files": 5,
+    "js_ts_files": 2,
+    "test_files": 0,
+    "config_files": 2,
+    "log_files": 3
+  },
+  "security_analysis": {
+    "score": 100,
+    "status": "passed",
+    "issues": [],
+    "warnings": []
+  },
+  "quality_analysis": {
+    "score": 95,
+    "status": "good",
+    "todo_count": 0
+  },
+  "test_analysis": {
+    "score": 40,
+    "test_ratio": 0,
+    "feedback": "No test files for code changes - acceptable for feature removal"
+  },
+  "overall_assessment": {
+    "score": 83,
+    "risk_level": "MEDIUM"
+  },
+  "recommendations": [
+    "Review theme toggle removal implementation",
+    "Verify no references to theme context remain",
+    "Test all pages after merge to ensure no runtime errors"
+  ]
+}
