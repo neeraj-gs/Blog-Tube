@@ -4,6 +4,21 @@
 
 set -euo pipefail
 
+# Force interactive mode by redirecting input from terminal (if available)
+if [ -t 0 ]; then
+    # Already connected to terminal
+    INPUT_SOURCE=""
+else
+    # Try to connect to /dev/tty if not already interactive
+    if [ -e /dev/tty ]; then
+        exec < /dev/tty
+        INPUT_SOURCE=" < /dev/tty"
+    else
+        # Running in non-interactive environment
+        INPUT_SOURCE=""
+    fi
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -78,36 +93,49 @@ echo "5. ❓ Q&A Discussion (with template)"
 echo "6. 🗨️ Custom Discussion (blank)"
 echo ""
 
-read -p "Select discussion type (1-6): " discussion_type
+# Force interactive input
+if [ -e /dev/tty ]; then
+    read -p "Select discussion type (1-6): " discussion_type < /dev/tty
+else
+    read -p "Select discussion type (1-6): " discussion_type
+fi
+
+# Validate input
+if [[ ! "$discussion_type" =~ ^[1-6]$ ]]; then
+    echo -e "${RED}❌ Invalid selection. Please enter a number between 1 and 6.${NC}"
+    exit 1
+fi
 
 case $discussion_type in
     1)
         template_type="sprint"
         default_category="General"
+        echo -e "${GREEN}✅ Selected: Sprint Planning${NC}"
         ;;
     2)
         template_type="requirements"
         default_category="General"
+        echo -e "${GREEN}✅ Selected: Requirements Analysis${NC}"
         ;;
     3)
         template_type="technical"
         default_category="General"
+        echo -e "${GREEN}✅ Selected: Technical Discussion${NC}"
         ;;
     4)
         template_type="ideas"
         default_category="Ideas"
+        echo -e "${GREEN}✅ Selected: Ideas & Enhancement${NC}"
         ;;
     5)
         template_type="qa"
         default_category="Q&A"
+        echo -e "${GREEN}✅ Selected: Q&A Discussion${NC}"
         ;;
     6)
         template_type="custom"
         default_category="General"
-        ;;
-    *)
-        echo -e "${RED}❌ Invalid selection${NC}"
-        exit 1
+        echo -e "${GREEN}✅ Selected: Custom Discussion${NC}"
         ;;
 esac
 
@@ -116,12 +144,38 @@ echo ""
 echo -e "${BLUE}📝 Discussion Details:${NC}"
 
 if [ "$template_type" = "sprint" ]; then
-    read -p "Sprint Number (e.g., 001, 032): " sprint_num
-    read -p "Sprint Name (e.g., Authentication System): " sprint_name
+    if [ -e /dev/tty ]; then
+        read -p "Sprint Number (e.g., 001, 032): " sprint_num < /dev/tty
+    else
+        read -p "Sprint Number (e.g., 001, 032): " sprint_num
+    fi
+    # Validate sprint number format
+    if [[ ! "$sprint_num" =~ ^[0-9]{3}$ ]]; then
+        echo -e "${YELLOW}⚠️  Sprint number should be 3 digits (e.g., 001, 032). Using as-is: $sprint_num${NC}"
+    fi
+    if [ -e /dev/tty ]; then
+        read -p "Sprint Name (e.g., Authentication System): " sprint_name < /dev/tty
+    else
+        read -p "Sprint Name (e.g., Authentication System): " sprint_name
+    fi
+    if [ -z "$sprint_name" ]; then
+        echo -e "${RED}❌ Sprint name cannot be empty${NC}"
+        exit 1
+    fi
     title="🚀 Sprint $sprint_num Planning - $sprint_name"
 else
-    read -p "Discussion Title: " title
+    if [ -e /dev/tty ]; then
+        read -p "Discussion Title: " title < /dev/tty
+    else
+        read -p "Discussion Title: " title
+    fi
+    if [ -z "$title" ]; then
+        echo -e "${RED}❌ Title cannot be empty${NC}"
+        exit 1
+    fi
 fi
+
+echo -e "${GREEN}✅ Title set: $title${NC}"
 
 # Category selection
 echo ""
@@ -131,16 +185,34 @@ for i in "${!category_list[@]}"; do
     echo "$((i+1)). $cat_emoji $cat_name"
 done
 echo ""
-read -p "Select category (1-${#category_list[@]}) or press Enter for default: " cat_selection
+if [ -e /dev/tty ]; then
+    read -p "Select category (1-${#category_list[@]}) or press Enter for default [$default_category]: " cat_selection < /dev/tty
+else
+    read -p "Select category (1-${#category_list[@]}) or press Enter for default [$default_category]: " cat_selection
+fi
 
 if [ -n "$cat_selection" ] && [ "$cat_selection" -ge 1 ] && [ "$cat_selection" -le ${#category_list[@]} ]; then
     selected_category_info="${category_list[$((cat_selection-1))]}"
     IFS='|' read -r selected_cat_id selected_cat_name selected_cat_emoji <<< "$selected_category_info"
+    echo -e "${GREEN}✅ Category selected: $selected_cat_emoji $selected_cat_name${NC}"
 else
     # Use default category
-    selected_cat_id=$(echo "$CATEGORIES" | grep "|$default_category|" | cut -d'|' -f1)
+    selected_cat_id=$(echo "$CATEGORIES" | grep "|$default_category|" | cut -d'|' -f1 | head -1)
     selected_cat_name="$default_category"
-    selected_cat_emoji="💬"
+    # Get emoji from categories
+    selected_cat_emoji=$(echo "$CATEGORIES" | grep "|$default_category|" | cut -d'|' -f3 | head -1)
+    if [ -z "$selected_cat_emoji" ]; then
+        selected_cat_emoji="💬"
+    fi
+    echo -e "${GREEN}✅ Using default category: $selected_cat_emoji $selected_cat_name${NC}"
+fi
+
+# Validate category ID
+if [ -z "$selected_cat_id" ] || [ "$selected_cat_id" = "null" ]; then
+    echo -e "${RED}❌ Failed to determine discussion category${NC}"
+    echo -e "${YELLOW}Available categories:${NC}"
+    echo "$CATEGORIES"
+    exit 1
 fi
 
 # Generate content based on template
@@ -426,9 +498,23 @@ echo \"Example commands\"
         echo ""
         echo -e "${BLUE}✏️ Enter your discussion content:${NC}"
         echo "(Type your content, then press Ctrl+D when finished)"
-        content=$(cat)
+        if [ -e /dev/tty ]; then
+            content=$(cat < /dev/tty)
+        else
+            content=$(cat)
+        fi
+        if [ -z "$content" ]; then
+            echo -e "${RED}❌ Content cannot be empty${NC}"
+            exit 1
+        fi
         ;;
 esac
+
+# Validate content was generated
+if [ -z "$content" ]; then
+    echo -e "${RED}❌ Failed to generate discussion content${NC}"
+    exit 1
+fi
 
 # Confirmation
 echo ""
@@ -442,17 +528,29 @@ echo "$content" | head -10
 echo "..."
 echo ""
 
-read -p "Create this discussion? (y/N): " confirm
+if [ -e /dev/tty ]; then
+    read -p "Create this discussion? (y/N): " confirm < /dev/tty
+else
+    read -p "Create this discussion? (y/N): " confirm
+fi
 if [[ ! $confirm =~ ^[Yy]$ ]]; then
-    echo -e "${YELLOW}❌ Discussion creation cancelled${NC}"
+    echo -e "${YELLOW}⚠️  Discussion creation cancelled by user${NC}"
     exit 0
 fi
 
+echo -e "${GREEN}✅ Confirmed. Creating discussion...${NC}"
+
 # Create the discussion
 echo ""
-echo -e "${BLUE}📝 Creating discussion...${NC}"
+echo -e "${BLUE}📝 Creating discussion via GitHub API...${NC}"
 
-DISCUSSION_URL=$(gh api graphql -f query='
+# Debug: Show what we're sending
+echo -e "${CYAN}Repository ID: $REPO_ID${NC}"
+echo -e "${CYAN}Category ID: $selected_cat_id${NC}"
+echo -e "${CYAN}Title: $title${NC}"
+
+# Create discussion and capture both URL and any errors
+DISCUSSION_RESPONSE=$(gh api graphql -f query='
     mutation($repositoryId: ID!, $categoryId: ID!, $title: String!, $body: String!) {
         createDiscussion(input: {
             repositoryId: $repositoryId
@@ -463,23 +561,66 @@ DISCUSSION_URL=$(gh api graphql -f query='
             discussion {
                 url
                 number
+                id
             }
         }
-    }' -f repositoryId="$REPO_ID" -f categoryId="$selected_cat_id" -f title="$title" -f body="$content" --jq '.data.createDiscussion.discussion.url' 2>/dev/null)
+    }' -f repositoryId="$REPO_ID" -f categoryId="$selected_cat_id" -f title="$title" -f body="$content" 2>&1)
+
+# Check if the response contains errors
+if echo "$DISCUSSION_RESPONSE" | grep -q "errors"; then
+    echo -e "${RED}❌ Failed to create discussion${NC}"
+    echo -e "${YELLOW}Error details:${NC}"
+    echo "$DISCUSSION_RESPONSE" | grep -A 10 "errors"
+    echo ""
+    echo -e "${YELLOW}Troubleshooting:${NC}"
+    echo "1. Check that GitHub Discussions are enabled for this repository"
+    echo "2. Verify you have write permissions to the repository"
+    echo "3. Ensure the category ID is valid"
+    echo "4. Check your GitHub authentication: gh auth status"
+    exit 1
+fi
+
+# Extract discussion URL
+DISCUSSION_URL=$(echo "$DISCUSSION_RESPONSE" | jq -r '.data.createDiscussion.discussion.url' 2>/dev/null)
+DISCUSSION_NUMBER=$(echo "$DISCUSSION_RESPONSE" | jq -r '.data.createDiscussion.discussion.number' 2>/dev/null)
 
 if [ -n "$DISCUSSION_URL" ] && [ "$DISCUSSION_URL" != "null" ]; then
+    echo ""
     echo -e "${GREEN}✅ Discussion created successfully!${NC}"
-    echo -e "${CYAN}   URL: $DISCUSSION_URL${NC}"
+    echo ""
+    echo -e "${CYAN}   📋 Title: $title${NC}"
+    echo -e "${CYAN}   🔢 Number: #$DISCUSSION_NUMBER${NC}"
+    echo -e "${CYAN}   🔗 URL: $DISCUSSION_URL${NC}"
     echo ""
     echo -e "${BLUE}🎯 Next Steps:${NC}"
-    echo "1. Visit the discussion URL to view it"
-    echo "2. Pin the discussion if it's important"
-    echo "3. Share with team members for collaboration"
-    echo "4. Add labels or reactions as needed"
+    echo "   1. Visit the discussion URL to view it"
+    echo "   2. Pin the discussion if it's important"
+    echo "   3. Share with team members for collaboration"
+    echo "   4. Add labels or reactions as needed"
     echo ""
     echo -e "${GREEN}🎉 Discussion '$title' is now live!${NC}"
+    echo ""
+
+    # Open in browser (optional)
+    if [ -e /dev/tty ]; then
+        read -p "Open discussion in browser? (y/N): " open_browser < /dev/tty
+    else
+        read -p "Open discussion in browser? (y/N): " open_browser
+    fi
+    if [[ $open_browser =~ ^[Yy]$ ]]; then
+        if command -v open &> /dev/null; then
+            open "$DISCUSSION_URL"
+        elif command -v xdg-open &> /dev/null; then
+            xdg-open "$DISCUSSION_URL"
+        else
+            echo -e "${YELLOW}⚠️  Cannot open browser automatically. Please visit: $DISCUSSION_URL${NC}"
+        fi
+    fi
 else
     echo -e "${RED}❌ Failed to create discussion${NC}"
-    echo "Check your GitHub permissions and try again"
+    echo -e "${YELLOW}Response received:${NC}"
+    echo "$DISCUSSION_RESPONSE"
+    echo ""
+    echo "Check your GitHub permissions and repository settings"
     exit 1
 fi

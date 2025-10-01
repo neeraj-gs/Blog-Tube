@@ -1,0 +1,38 @@
+{
+  "review_id": "review-1759302232-32",
+  "pr_number": 32,
+  "pr_title": "",
+  "pr_author": "",
+  "reviewer": "neeraj-gs",
+  "timestamp": "2025-10-01T07:03:55Z",
+  "pr_url": "",
+  "branch_info": {
+    "head": "",
+    "base": ""
+  },
+  "pr_status": {
+    "state": "",
+    "is_draft": ,
+    "review_decision": "",
+    "mergeable": ""
+  },
+  "files_analysis": {
+    "total_files": 5,
+    "changed_files": [
+  ""
+]
+  },
+  "review_status": "started",
+  "checklist": {
+    "code_quality": "pending",
+    "architecture": "pending",
+    "security": "pending",
+    "testing": "pending",
+    "documentation": "pending"
+  },
+  "next_actions": [
+    "Run automated analysis with /claudia:review:analyze 32",
+    "Perform interactive review with /claudia:review:interactive 32",
+    "Submit review feedback on GitHub"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "analysis_id": "analysis-1759302369-32",
+  "pr_number": 32,
+  "pr_title": "",
+  "pr_author": "app/github-actions",
+  "analyzer": "neeraj-gs",
+  "timestamp": "2025-10-01T07:06:12Z",
+  "pr_url": "https://github.com/neeraj-gs/Blog-Tube/pull/32",
+  "file_analysis": {
+    "total_files": 5,
+    "js_ts_files": ,
+    "style_files": ,
+    "test_files": ,
+    "config_files": ,
+    "markdown_files": ,
+    "package_files": 
+  },
+  "security_analysis": {
+    "score": ,
+    "issues": "",
+    "warnings": ""
+  },
+  "quality_analysis": {
+    "score": ,
+    "issues": "",
+    "suggestions": "",
+    "todo_count": 
+  },
+  "test_analysis": {
+    "score": 100,
+    "test_ratio": 0,
+    "feedback": ""
+  },
+  "overall_assessment": {
+    "score": 25,
+    "risk_level": "HIGH"
+  },
+  "recommendations": []
+}
