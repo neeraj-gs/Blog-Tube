@@ -41,13 +41,41 @@
       ],
       "failedAgents": [],
       "endTime": "2025-08-21T07:32:19.273Z"
+    },
+    "issue-39": {
+      "issueNumber": "39",
+      "issueData": {
+        "type": "feature",
+        "complexity": "simple",
+        "risk": "low",
+        "agents": [
+          "frontend"
+        ],
+        "autoImplement": true
+      },
+      "requiredAgents": [
+        "frontend"
+      ],
+      "status": "registered",
+      "startTime": "2025-10-06T07:11:34.252Z",
+      "agentProgress": {},
+      "currentAgent": null,
+      "completedAgents": [],
+      "failedAgents": []
     }
   },
-  "agentQueue": [],
+  "agentQueue": [
+    {
+      "issueId": "issue-39",
+      "agentType": "frontend",
+      "status": "queued",
+      "queueTime": "2025-10-06T07:11:34.252Z"
+    }
+  ],
   "resourceLocks": {
     "frontend-ui": "9",
     "react-components": "9"
   },
   "agentCommunication": {},
-  "lastUpdate": "2025-08-21T07:32:19.273Z"
+  "lastUpdate": "2025-10-06T07:11:34.252Z"
 }
