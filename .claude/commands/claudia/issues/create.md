@@ -5,7 +5,7 @@ allowed-tools: ["Read", "Write", "Edit", "Bash"]
 
 # 🎯 Create GitHub Issue from Sprint Requirement
 
-I'll create a GitHub issue from a requirement embedded in a sprint document.
+I'll create a GitHub issue from a requirement embedded in a sprint document and store it in the tickets folder.
 
 ## Parse and Validate Arguments
 
@@ -48,13 +48,18 @@ if [ ! -f "$SPRINT_FILE" ]; then
     exit 1
 fi
 
+# Create sprint folder in tickets directory
+TICKETS_DIR=".claude-shared/project-management/5-tickets/$SPRINT_NUMBER"
+mkdir -p "$TICKETS_DIR"
+
 # Output parsed values for Claude to use
 echo "SPRINT_NUMBER=$SPRINT_NUMBER"
 echo "SPRINT_FILE=$SPRINT_FILE"
 echo "REQUIREMENT_NUM=$REQUIREMENT_NUM"
 echo "ISSUE_TITLE=$ISSUE_TITLE"
 echo "LABELS=$LABELS"
+echo "TICKETS_DIR=$TICKETS_DIR"
 echo "VALIDATED=SUCCESS"
 '
 
-Now I'll read the sprint document, extract the requirement, create the GitHub issue using the Bash tool, and store the ticket file.
+Now I'll read the sprint document, extract the requirement, create the GitHub issue, and store the ticket file in the sprint-organized folder structure.

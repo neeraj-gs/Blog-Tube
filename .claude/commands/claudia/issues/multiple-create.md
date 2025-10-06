@@ -40,12 +40,17 @@ if [ ! -f "$SPRINT_FILE" ]; then
     exit 1
 fi
 
+# Create sprint folder in tickets directory
+TICKETS_DIR=".claude-shared/project-management/5-tickets/$SPRINT_NUMBER"
+mkdir -p "$TICKETS_DIR"
+
 # Output parsed values for Claude to use
 echo "SPRINT_NUMBER=$SPRINT_NUMBER"
 echo "SPRINT_FILE=$SPRINT_FILE"
 echo "LABELS=$LABELS"
 echo "SKIP_REQUIREMENTS=$SKIP_REQUIREMENTS"
+echo "TICKETS_DIR=$TICKETS_DIR"
 echo "VALIDATED=SUCCESS"
 '
 
-Now I'll read the sprint document, discover all requirements, filter based on skip list, and create GitHub issues for each requirement using the Bash tool.
+Now I'll read the sprint document, discover all requirements, filter based on skip list, and create GitHub issues for each requirement. Each issue will be stored as a ticket file in .claude-shared/project-management/5-tickets/[sprint-number]/
