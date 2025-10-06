@@ -40,27 +40,9 @@ jobs:
           NC='\033[0m'
 
           # Configuration
-          BYPASS_FILE=".github/emergency-bypass.active"
           AUDIT_DIR=".claude-shared/project-management/data"
           VALIDATION_PASSED=true
           VALIDATION_MESSAGES=()
-
-          # Check for emergency bypass
-          if [ -f "$BYPASS_FILE" ]; then
-            echo -e "${YELLOW}🚨 Emergency bypass detected${NC}"
-            if grep -q "AUTHORIZED=true" "$BYPASS_FILE" 2>/dev/null; then
-              echo -e "${GREEN}✅ Emergency bypass authorized - workflow validation skipped${NC}"
-              echo "bypass_active=true" >> $GITHUB_OUTPUT
-              echo "validation_result=bypassed" >> $GITHUB_OUTPUT
-              exit 0
-            else
-              echo -e "${RED}❌ Invalid emergency bypass file${NC}"
-              VALIDATION_PASSED=false
-              VALIDATION_MESSAGES+=("Invalid emergency bypass authorization")
-            fi
-          fi
-
-          echo "bypass_active=false" >> $GITHUB_OUTPUT
 
           # Function to check commit compliance
           validate_commits() {
@@ -92,7 +74,7 @@ jobs:
                 echo "  Message: $(echo "$commit_msg" | head -1)"
 
                 # Check if it's a conventional commit (more lenient)
-                if echo "$commit_msg" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|emergency|hotfix)(\(.+\))?: .+"; then
+                if echo "$commit_msg" | grep -qE "^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?: .+"; then
                   echo -e "${YELLOW}  └─ Conventional commit format detected${NC}"
                 else
                   echo -e "${RED}  └─ Non-standard commit format${NC}"
@@ -144,13 +126,7 @@ jobs:
               echo -e "${GREEN}✅ PR contains Claudia signature${NC}"
             else
               echo -e "${YELLOW}⚠️ PR may not have been created via Claudia workflow${NC}"
-
-              # Check if it's a hotfix/emergency PR
-              if echo "$pr_title" | grep -qiE "(emergency|hotfix|critical)"; then
-                echo -e "${YELLOW}  └─ Emergency PR detected - more lenient validation${NC}"
-              else
-                VALIDATION_MESSAGES+=("PR not created via Claudia workflow")
-              fi
+              VALIDATION_MESSAGES+=("PR not created via Claudia workflow")
             fi
 
             # Check for linked issues
@@ -227,11 +203,7 @@ jobs:
           echo "## 🤖 Claudia Workflow Validation Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ steps.validate-workflow.outputs.validation_result }}" = "bypassed" ]; then
-            echo "🚨 **Status**: Emergency Bypass Active" >> $GITHUB_STEP_SUMMARY
-            echo "- Workflow validation was bypassed due to authorized emergency" >> $GITHUB_STEP_SUMMARY
-            echo "- Post-incident review required" >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ steps.validate-workflow.outputs.validation_result }}" = "passed" ]; then
+          if [ "${{ steps.validate-workflow.outputs.validation_result }}" = "passed" ]; then
             echo "✅ **Status**: Validation Passed" >> $GITHUB_STEP_SUMMARY
             echo "- All commits comply with Claudia workflow" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ steps.validate-workflow.outputs.validation_result }}" = "passed_with_warnings" ]; then
@@ -257,20 +229,17 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Claudia Workflow Commands" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo '# Create requirements' >> $GITHUB_STEP_SUMMARY
-          echo '/claudia:requirements:define "description"' >> $GITHUB_STEP_SUMMARY
+          echo '# Create sprint with embedded requirements' >> $GITHUB_STEP_SUMMARY
+          echo '/claudia:sprint:create "030"' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
-          echo '# Create GitHub issue' >> $GITHUB_STEP_SUMMARY
-          echo '/claudia:issues:create "req-uuid"' >> $GITHUB_STEP_SUMMARY
+          echo '# Create GitHub issue from sprint requirement' >> $GITHUB_STEP_SUMMARY
+          echo '/claudia:issues:create "030" --requirement 1' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
-          echo '# Implement changes' >> $GITHUB_STEP_SUMMARY
-          echo '/claudia:implement:manual "req-uuid"' >> $GITHUB_STEP_SUMMARY
+          echo '# Commit changes with traceability' >> $GITHUB_STEP_SUMMARY
+          echo '/claudia:commit "21" "implement feature"' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
-          echo '# Commit changes' >> $GITHUB_STEP_SUMMARY
-          echo '/claudia:commit "issue-id"' >> $GITHUB_STEP_SUMMARY
-          echo '' >> $GITHUB_STEP_SUMMARY
-          echo '# Create PR' >> $GITHUB_STEP_SUMMARY
-          echo '/claudia:pr:create "issue-id"' >> $GITHUB_STEP_SUMMARY
+          echo '# Create PR from issue' >> $GITHUB_STEP_SUMMARY
+          echo '/claudia:pr:create "21"' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: 💬 Comment on PR with validation results
@@ -301,14 +270,10 @@ jobs:
             ${messages.split('\n').map(msg => `- ${msg}`).join('\n')}
 
             ` : ''}**Claudia Workflow Guide**:
-            1. \`/claudia:requirements:define "description"\` - Define requirements
-            2. \`/claudia:issues:create "req-uuid"\` - Create GitHub issue
-            3. \`/claudia:implement:manual "req-uuid"\` - Implement changes
-            4. \`/claudia:commit "issue-id"\` - Commit via Claudia
-            5. \`/claudia:pr:create "issue-id"\` - Create PR via Claudia
-
-            **For Emergency Situations**:
-            Use \`.github/scripts/create-emergency-bypass.sh\` to create authorized bypass.
+            1. \`/claudia:sprint:create "030"\` - Create sprint with embedded requirements
+            2. \`/claudia:issues:create "030" --requirement 1\` - Create GitHub issue from sprint
+            3. \`/claudia:commit "21" "description"\` - Commit with traceability
+            4. \`/claudia:pr:create "21"\` - Create PR from issue
 
             ---
             🤖 Automated validation by Claudia Workflow System`;
@@ -321,7 +286,7 @@ jobs:
             });
 
       - name: ❌ Fail if validation failed
-        if: steps.validate-workflow.outputs.validation_result == 'failed' && steps.validate-workflow.outputs.bypass_active == 'false'
+        if: steps.validate-workflow.outputs.validation_result == 'failed'
         run: |
           echo "❌ Claudia workflow validation failed"
           echo "This pull request does not comply with mandatory Claudia workflow requirements"
@@ -331,7 +296,6 @@ jobs:
           echo "2. Use /claudia:pr:create for pull requests"
           echo "3. Maintain proper audit trail"
           echo ""
-          echo "For emergency situations, use emergency bypass procedures"
           exit 1
 
   code-quality-check:

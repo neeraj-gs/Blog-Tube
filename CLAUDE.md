@@ -284,52 +284,79 @@ npm run start    # Start production server
 Sprint 030 → Requirement 030-01 → Ticket 030-01-01
 ```
 
-### Core Claudia Workflow (Required)
+### Core Claudia Workflow (Required) - UPDATED
+
+⚠️ **NEW WORKFLOW**: Requirements are now EMBEDDED in sprint documents (no separate files).
 
 ```bash
-# 1. ALWAYS start with sprint creation
-/claudia:sprint:create "030"
-# → Creates: Sprint 030
+# 1. ALWAYS start with sprint creation (with embedded requirements)
+/claudia:sprint:create "030" [--with-planning "path/to/planning.md"]
+# → Creates: .claude-shared/project-management/3-sprints/030.md
+# → Contains: Sprint goals + embedded requirements
 
-# 2. Define requirements for sprint
-/claudia:requirements:define "Authentication System" --sprint 030
-# → Generates: 030-01-auth-system
+# 2. Edit requirements directly in sprint document
+# Open: .claude-shared/project-management/3-sprints/030.md
+# Add/edit requirements following the template structure:
+#   ### Requirement 1: Authentication System
+#   **Priority:** High
+#   **Problem Statement:** ...
+#   **Success Criteria:** ...
+#   **Acceptance Criteria:** ...
 
-# 3. Break requirements into actionable tickets
-/claudia:tickets:create "030-01" --env dev
-# → Generates: 030-01-01-implementation
+# 3. Create GitHub issues from sprint requirements
+# Option A - Single issue:
+/claudia:issues:create "030" --requirement 1
+# → Creates: GitHub Issue #N from Requirement 1
+# → Stores: .claude-shared/project-management/5-tickets/030-issue-N-*.md
 
-# 4. Assign to GitHub Issues + Notion
-/claudia:tickets:assign "030-01-01"
+# Option B - Multiple issues at once:
+/claudia:issues:multiple-create "030" [--skip "2"]
+# → Creates: Issues for ALL requirements (except skipped)
+# → Stores: All tickets in 5-tickets/ folder
 
-# 5. Implement using TDD methodology
-/claudia:implement:manual "030-01-01"  # Collaborative mode (recommended)
-/claudia:implement:auto "030-01-01"    # Fully automated mode
+# 4. List issues
+/claudia:issues:pull
+
+# 5. Implement changes (MANUAL - no automatic PR)
+# Review the issue, make code changes manually or with Claude Code
 
 # 6. Commit with full traceability
-/claudia:commit "030-01-01" "feat: implement user authentication system"
+/claudia:commit "030-issue-21" "feat: implement user authentication system"
+# → Updates: Ticket file in 5-tickets/ with commit info
 
 # 7. Create pull request
-/claudia:pr:create "030-01-01"
+/claudia:pr:create "21"
+# → Creates: PR linked to issue #21
 
-# 8. Mark ticket complete (closes GitHub issue)
-/claudia:tickets:complete "030-01-01"
+# 8. Code review
+/claudia:review:start "30"
+
+# 9. Merge PR
+/claudia:pr:merge "30"
 ```
+
+**Key Changes:**
+- ❌ No more `/claudia:requirements:define` - edit sprint .md directly
+- ❌ No more `/claudia:tickets:create` - use `/claudia:issues:create` instead
+- ✅ Requirements embedded in sprint documents
+- ✅ All issues stored locally in 5-tickets/ folder
+- ✅ Manual implementation workflow (no automatic PRs)
 
 ### GitHub Integration Commands
 
 ```bash
 # Pull all GitHub issues for current repository
-/claudia:tickets:list --source github
+/claudia:issues:pull [--state open|closed|all] [--labels "label"] [--assignee "user"]
 
-# Create GitHub issue from ticket
-/claudia:tickets:assign "030-01-01" --create-issue
+# Create single GitHub issue from sprint requirement
+/claudia:issues:create "030" --requirement 1 [--title "Custom"] [--labels "bug,feature"]
 
-# Update GitHub issue status
-/claudia:tickets:update "030-01-01" --status "in-progress"
+# Create multiple GitHub issues from sprint (bulk)
+/claudia:issues:multiple-create "030" [--labels "enhancement"] [--skip "1,3"]
 
-# Close GitHub issue when ticket complete
-/claudia:tickets:complete "030-01-01" --close-issue
+# View all tickets (local copies of issues)
+# Location: .claude-shared/project-management/5-tickets/
+# Tickets are automatically created and updated
 ```
 
 ### Monitoring & Compliance

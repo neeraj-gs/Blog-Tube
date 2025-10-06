@@ -1,77 +1,174 @@
 ---
-description: "Standardized commit with full traceability and PR creation"
+description: "Standardized commit with full traceability and interactive branch creation"
 allowed-tools: ["Read", "Write", "Edit", "Bash"]
 ---
 
 # 📝 Standardized Commit with Traceability
 
-Create a standardized commit with full traceability linking, automated PR creation, and comprehensive documentation updates.
+Create a standardized commit with full traceability linking to GitHub issues, with interactive branch creation option.
 
-## Processing Commit for Ticket: $ARGUMENTS
+## Processing Commit: $ARGUMENTS
 
-!bash -c 'echo "📝 Preparing standardized commit for ticket and message: $ARGUMENTS"'
+!bash -c 'echo "📝 Preparing standardized commit: $ARGUMENTS"'
 
 ## Parse Arguments and Validate
 
 !bash -c '
-# Parse arguments: ticket_uuid
-if [ -z "$1" ]; then
-    echo "❌ Usage: /claudia:commit \"ticket-uuid\""
-    echo "Example: /claudia:commit \"030-01-01-database\""
+# Parse arguments: issue-id [description]
+ARGS_STRING="$*"
+
+if [ -z "$ARGS_STRING" ]; then
+    echo "❌ Usage: /claudia:commit \"issue-id\" [\"description\"]"
+    echo "Example: /claudia:commit \"030-issue-21\" \"implement authentication system\""
+    echo "Example: /claudia:commit \"21\" \"add user login feature\""
     exit 1
 fi
 
-TICKET_UUID="$1"
+# Extract issue ID (support both "030-issue-21" and "21" formats)
+ISSUE_ID=$(echo "$ARGS_STRING" | awk "{print \$1}" | sed "s/[\"\']//g")
 
-# Validate ticket exists (try both old and new formats)
-if [ -f "docs/5-tickets/$TICKET_UUID.md" ]; then
-    TICKET_PATH="docs/5-tickets/$TICKET_UUID.md"
-elif [ -f "5-tickets/$TICKET_UUID.md" ]; then
-    TICKET_PATH="5-tickets/$TICKET_UUID.md"
+# Extract description (everything after first argument)
+DESCRIPTION=$(echo "$ARGS_STRING" | sed "s/^[^ ]* *//" | sed "s/^[\"\']//;s/[\"\']$//")
+
+# Normalize issue ID to just the number
+if echo "$ISSUE_ID" | grep -q "issue-"; then
+    ISSUE_NUMBER=$(echo "$ISSUE_ID" | sed "s/.*issue-//")
 else
-    echo "❌ ERROR: Ticket document not found"
-    echo "Looked for: docs/5-tickets/$TICKET_UUID.md"
-    echo "       and: 5-tickets/$TICKET_UUID.md"
-    exit 1
+    ISSUE_NUMBER="$ISSUE_ID"
 fi
 
-echo "✅ Arguments validated"
-echo "TICKET_UUID=$TICKET_UUID" > /tmp/claudia_commit_context
-echo "TICKET_PATH=$TICKET_PATH" >> /tmp/claudia_commit_context
+echo "✅ Arguments parsed"
+echo "ISSUE_NUMBER=$ISSUE_NUMBER" > /tmp/claudia_commit_context
+echo "DESCRIPTION=$DESCRIPTION" >> /tmp/claudia_commit_context
 '
 
-## Extract Full Context
+## Fetch Issue Details from GitHub
 
 !bash -c '
 source /tmp/claudia_commit_context
+echo ""
+echo "🔍 Fetching issue #$ISSUE_NUMBER from GitHub..."
 
-# Extract ticket details
-TICKET_TITLE=$(grep "^# " "$TICKET_PATH" | sed "s/^# //" | head -1)
-TICKET_TYPE=$(grep "^\*\*Type:\*\*" "$TICKET_PATH" | sed "s/\*\*Type:\*\* //" | head -1)
-REQ_UUID=$(grep "^\*\*Requirement:\*\*" "$TICKET_PATH" | sed "s/\*\*Requirement:\*\* \`\([^`]*\)\`.*/\1/" | head -1)
-GITHUB_ISSUE=$(grep "^\*\*GitHub Issue:\*\*" "$TICKET_PATH" | sed "s/\*\*GitHub Issue:\*\* #\([0-9]*\).*/\1/" | head -1)
-
-# Auto-generate commit message from ticket title
-COMMIT_MESSAGE=$(echo "$TICKET_TITLE" | sed "s/^[A-Z][a-z]*//" | sed "s/^: *//" | sed "s/^//" | head -c 50)
-if [ -z "$COMMIT_MESSAGE" ]; then
-    COMMIT_MESSAGE="$TICKET_TITLE"
+# Check if gh CLI is installed
+if ! command -v gh &> /dev/null; then
+    echo "❌ ERROR: GitHub CLI (gh) not installed"
+    echo "Install: brew install gh"
+    exit 1
 fi
 
-echo "📋 Commit Context:"
-echo "- Ticket: $TICKET_TITLE" 
-echo "- Type: $TICKET_TYPE"
-echo "- Requirement: $REQ_UUID"
-echo "- GitHub Issue: #$GITHUB_ISSUE"
-echo "- Auto-generated Message: $COMMIT_MESSAGE"
+# Fetch issue details
+ISSUE_JSON=$(gh issue view "$ISSUE_NUMBER" --json number,title,body,labels,state 2>/dev/null)
 
-# Save full context
+if [ $? -ne 0 ]; then
+    echo "❌ ERROR: Could not find issue #$ISSUE_NUMBER"
+    echo "Make sure the issue exists and you have access to the repository"
+    exit 1
+fi
+
+ISSUE_TITLE=$(echo "$ISSUE_JSON" | jq -r ".title")
+ISSUE_STATE=$(echo "$ISSUE_JSON" | jq -r ".state")
+ISSUE_LABELS=$(echo "$ISSUE_JSON" | jq -r ".labels[].name" | tr "\n" "," | sed "s/,$//")
+
+if [ "$ISSUE_STATE" = "CLOSED" ]; then
+    echo "⚠️  Warning: Issue #$ISSUE_NUMBER is CLOSED"
+fi
+
+echo "📋 Issue Details:"
+echo "- Title: $ISSUE_TITLE"
+echo "- State: $ISSUE_STATE"
+echo "- Labels: $ISSUE_LABELS"
+
+# Save to context
 cat >> /tmp/claudia_commit_context << EOF
-TICKET_TITLE="$TICKET_TITLE"
-TICKET_TYPE="$TICKET_TYPE"
-REQ_UUID="$REQ_UUID"
-GITHUB_ISSUE="$GITHUB_ISSUE"
-COMMIT_MESSAGE="$COMMIT_MESSAGE"
+ISSUE_TITLE="$ISSUE_TITLE"
+ISSUE_STATE="$ISSUE_STATE"
+ISSUE_LABELS="$ISSUE_LABELS"
 EOF
+'
+
+## Interactive Branch Creation
+
+!bash -c '
+source /tmp/claudia_commit_context
+echo ""
+echo "🌿 Branch Management"
+echo ""
+
+CURRENT_BRANCH=$(git branch --show-current)
+echo "📍 Current branch: $CURRENT_BRANCH"
+echo ""
+
+# Check if already on a feature branch for this issue
+EXPECTED_BRANCH="feature/issue-${ISSUE_NUMBER}"
+if echo "$CURRENT_BRANCH" | grep -q "issue-${ISSUE_NUMBER}"; then
+    echo "✅ Already on branch for issue #$ISSUE_NUMBER"
+    echo "BRANCH_CREATED=false" >> /tmp/claudia_commit_context
+    echo "TARGET_BRANCH=$CURRENT_BRANCH" >> /tmp/claudia_commit_context
+else
+    echo "❓ Would you like to create a new branch for this issue?"
+    echo ""
+    echo "Options:"
+    echo "  1) Create new branch from current branch ($CURRENT_BRANCH)"
+    echo "  2) Create new branch from main"
+    echo "  3) Create new branch from staging"
+    echo "  4) No, stay on current branch"
+    echo ""
+    read -p "Enter your choice (1-4): " BRANCH_CHOICE
+
+    case "$BRANCH_CHOICE" in
+        1)
+            BASE_BRANCH="$CURRENT_BRANCH"
+            CREATE_BRANCH=true
+            ;;
+        2)
+            BASE_BRANCH="main"
+            CREATE_BRANCH=true
+            ;;
+        3)
+            BASE_BRANCH="staging"
+            CREATE_BRANCH=true
+            ;;
+        4)
+            echo "✅ Staying on current branch: $CURRENT_BRANCH"
+            CREATE_BRANCH=false
+            ;;
+        *)
+            echo "❌ Invalid choice, staying on current branch"
+            CREATE_BRANCH=false
+            ;;
+    esac
+
+    if [ "$CREATE_BRANCH" = true ]; then
+        # Generate safe branch name from issue title
+        SAFE_TITLE=$(echo "$ISSUE_TITLE" | tr "[:upper:]" "[:lower:]" | sed "s/[^a-z0-9 ]//g" | tr " " "-" | cut -c1-50)
+        NEW_BRANCH="feature/issue-${ISSUE_NUMBER}-${SAFE_TITLE}"
+
+        echo ""
+        echo "🌿 Creating new branch: $NEW_BRANCH"
+        echo "📍 Base branch: $BASE_BRANCH"
+
+        # Ensure base branch is up to date if not current branch
+        if [ "$BASE_BRANCH" != "$CURRENT_BRANCH" ]; then
+            echo "📥 Fetching latest from origin..."
+            git fetch origin "$BASE_BRANCH"
+        fi
+
+        # Create and checkout new branch
+        git checkout -b "$NEW_BRANCH" "origin/$BASE_BRANCH" 2>/dev/null || git checkout -b "$NEW_BRANCH" "$BASE_BRANCH"
+
+        if [ $? -eq 0 ]; then
+            echo "✅ Created and switched to: $NEW_BRANCH"
+            echo "BRANCH_CREATED=true" >> /tmp/claudia_commit_context
+            echo "TARGET_BRANCH=$NEW_BRANCH" >> /tmp/claudia_commit_context
+        else
+            echo "❌ ERROR: Failed to create branch"
+            exit 1
+        fi
+    else
+        echo "BRANCH_CREATED=false" >> /tmp/claudia_commit_context
+        echo "TARGET_BRANCH=$CURRENT_BRANCH" >> /tmp/claudia_commit_context
+    fi
+fi
 '
 
 ## Pre-Commit Quality Checks
@@ -91,147 +188,96 @@ fi
 if git diff --staged --quiet; then
     echo "📝 No staged changes found, staging all changes..."
     git add .
-    
+
     if git diff --staged --quiet; then
         echo "❌ ERROR: No changes to commit"
         exit 1
     fi
 fi
 
-# Run tests
-echo "🧪 Running test suite..."
-cd api
-TEST_OUTPUT=$(npm test 2>&1)
-TEST_EXIT_CODE=$?
-
-if [ $TEST_EXIT_CODE -eq 0 ]; then
-    echo "✅ All tests pass"
-    TEST_STATUS="PASS"
-else
-    echo "❌ Tests failing:"
-    echo "$TEST_OUTPUT" | tail -10
-    echo ""
-    echo "⚠️  Proceeding with commit anyway (tests may be expected to fail during development)"
-    TEST_STATUS="FAIL"
-fi
-
-# Run linting
-echo "🔍 Running linting checks..."
-LINT_OUTPUT=$(npm run lint 2>&1)
-LINT_EXIT_CODE=$?
-
-if [ $LINT_EXIT_CODE -eq 0 ]; then
-    echo "✅ Linting passes"
-    LINT_STATUS="PASS"
-else
-    echo "⚠️  Linting issues found:"
-    echo "$LINT_OUTPUT" | head -10
-    echo ""
-    echo "🔧 Attempting to auto-fix..."
-    npm run lint:fix > /dev/null 2>&1
-    
-    # Check if auto-fix resolved issues
-    if npm run lint > /dev/null 2>&1; then
-        echo "✅ Auto-fix successful"
-        LINT_STATUS="FIXED"
-    else
-        echo "⚠️  Some linting issues remain - proceeding with commit"
-        LINT_STATUS="PARTIAL"
-    fi
-fi
-
-cd ..
-
-echo "TEST_STATUS=$TEST_STATUS" >> /tmp/claudia_commit_context
-echo "LINT_STATUS=$LINT_STATUS" >> /tmp/claudia_commit_context
+echo "✅ Changes staged and ready to commit"
 '
 
-## Generate Standardized Commit Message
+## Generate Commit Message
 
 !bash -c '
 source /tmp/claudia_commit_context
 echo ""
-echo "📝 Generating standardized commit message..."
+echo "📝 Generating commit message..."
 
-# Determine commit type from ticket type
-case "$TICKET_TYPE" in
-    "Database") COMMIT_TYPE="feat" ;;
-    "API") COMMIT_TYPE="feat" ;;
-    "Frontend") COMMIT_TYPE="feat" ;;
-    "Testing") COMMIT_TYPE="test" ;;
-    "Implementation") COMMIT_TYPE="feat" ;;
-    *) COMMIT_TYPE="feat" ;;
-esac
-
-# Extract scope from ticket or requirement
-SCOPE="unknown"
-if echo "$TICKET_TITLE" | grep -qi "database\|schema\|model"; then
-    SCOPE="db"
-elif echo "$TICKET_TITLE" | grep -qi "api\|endpoint"; then
-    SCOPE="api"
-elif echo "$TICKET_TITLE" | grep -qi "test"; then
-    SCOPE="test"
-elif echo "$TICKET_TITLE" | grep -qi "xp\|experience"; then
-    SCOPE="xp"
-elif echo "$TICKET_TITLE" | grep -qi "auth\|login"; then
-    SCOPE="auth"
-else
-    # Try to extract from requirement (check both paths for compatibility)
-    REQ_PATH="docs/4-requirements/$REQ_UUID.md"
-    if [ ! -f "$REQ_PATH" ] && [ -f "4-requirements/$REQ_UUID.md" ]; then
-        REQ_PATH="4-requirements/$REQ_UUID.md"
-    fi
-    
-    if [ -f "$REQ_PATH" ]; then
-        REQ_CONTENT=$(cat "$REQ_PATH")
-        if echo "$REQ_CONTENT" | grep -qi "xp\|experience"; then
-            SCOPE="xp"
-        elif echo "$REQ_CONTENT" | grep -qi "auth"; then
-            SCOPE="auth"
-        elif echo "$REQ_CONTENT" | grep -qi "user"; then
-            SCOPE="user"
-        else
-            SCOPE="feature"
-        fi
-    fi
+# Determine commit type from labels
+COMMIT_TYPE="feat"
+if echo "$ISSUE_LABELS" | grep -qi "bug\|fix"; then
+    COMMIT_TYPE="fix"
+elif echo "$ISSUE_LABELS" | grep -qi "docs\|documentation"; then
+    COMMIT_TYPE="docs"
+elif echo "$ISSUE_LABELS" | grep -qi "test"; then
+    COMMIT_TYPE="test"
+elif echo "$ISSUE_LABELS" | grep -qi "refactor"; then
+    COMMIT_TYPE="refactor"
+elif echo "$ISSUE_LABELS" | grep -qi "chore"; then
+    COMMIT_TYPE="chore"
 fi
 
-# Get commit statistics  
+# Determine scope from labels or title
+SCOPE=""
+if echo "$ISSUE_LABELS" | grep -qi "frontend\|ui"; then
+    SCOPE="frontend"
+elif echo "$ISSUE_LABELS" | grep -qi "backend\|api"; then
+    SCOPE="backend"
+elif echo "$ISSUE_LABELS" | grep -qi "database\|db"; then
+    SCOPE="db"
+elif echo "$ISSUE_LABELS" | grep -qi "auth"; then
+    SCOPE="auth"
+fi
+
+# Use description if provided, otherwise use issue title
+if [ -n "$DESCRIPTION" ]; then
+    COMMIT_SUMMARY="$DESCRIPTION"
+else
+    COMMIT_SUMMARY=$(echo "$ISSUE_TITLE" | head -c 72)
+fi
+
+# Get commit statistics
 FILES_CHANGED=$(git diff --staged --name-only | wc -l | tr -d " ")
 ADDITIONS=$(git diff --staged --numstat | awk "{add += \$1} END {print add+0}")
 DELETIONS=$(git diff --staged --numstat | awk "{del += \$2} END {print del+0}")
 
-# Create comprehensive commit message
-FULL_COMMIT_MESSAGE="$COMMIT_TYPE($SCOPE): $COMMIT_MESSAGE
+# Generate full commit message
+if [ -n "$SCOPE" ]; then
+    COMMIT_PREFIX="$COMMIT_TYPE($SCOPE)"
+else
+    COMMIT_PREFIX="$COMMIT_TYPE"
+fi
 
-Ticket: $TICKET_UUID - $TICKET_TITLE
-Requirement: $REQ_UUID
-GitHub Issue: #$GITHUB_ISSUE
+FULL_COMMIT_MESSAGE="$COMMIT_PREFIX: $COMMIT_SUMMARY
+
+Resolves #$ISSUE_NUMBER
 
 Implementation Details:
 - Files changed: $FILES_CHANGED
-- Lines added: $ADDITIONS
-- Lines deleted: $DELETIONS
-- Tests: $TEST_STATUS
-- Linting: $LINT_STATUS
+- Lines: +$ADDITIONS / -$DELETIONS
+- Branch: $TARGET_BRANCH
 
-Traceability Chain:
-Requirement $REQ_UUID → Ticket $TICKET_UUID → Commit $(git rev-parse --short HEAD 2>/dev/null || echo "pending")
-
-Closes #$GITHUB_ISSUE
-
-🤖 Generated with Claude Code (https://claude.ai/code)
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
 
 echo "FULL_COMMIT_MESSAGE=\"$FULL_COMMIT_MESSAGE\"" >> /tmp/claudia_commit_context
 echo "COMMIT_TYPE=$COMMIT_TYPE" >> /tmp/claudia_commit_context
 echo "SCOPE=$SCOPE" >> /tmp/claudia_commit_context
+echo "COMMIT_SUMMARY=$COMMIT_SUMMARY" >> /tmp/claudia_commit_context
 echo "FILES_CHANGED=$FILES_CHANGED" >> /tmp/claudia_commit_context
-echo "ADDITIONS=$ADDITIONS" >> /tmp/claudia_commit_context  
+echo "ADDITIONS=$ADDITIONS" >> /tmp/claudia_commit_context
 echo "DELETIONS=$DELETIONS" >> /tmp/claudia_commit_context
 
-echo "✅ Standardized commit message generated"
+echo ""
+echo "📋 Commit Preview:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "$FULL_COMMIT_MESSAGE"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "✅ Commit message generated"
 '
 
 ## Create Commit
@@ -242,10 +288,7 @@ echo ""
 echo "💾 Creating commit..."
 
 # Create the commit using heredoc for proper formatting
-git commit -m "$(cat <<EOF
-$FULL_COMMIT_MESSAGE
-EOF
-)"
+git commit -m "$FULL_COMMIT_MESSAGE"
 
 COMMIT_EXIT_CODE=$?
 
@@ -254,7 +297,7 @@ if [ $COMMIT_EXIT_CODE -eq 0 ]; then
     COMMIT_SHORT_HASH=$(git rev-parse --short HEAD)
     echo "✅ Commit created successfully"
     echo "📝 Commit hash: $COMMIT_SHORT_HASH"
-    
+
     echo "COMMIT_HASH=$COMMIT_HASH" >> /tmp/claudia_commit_context
     echo "COMMIT_SHORT_HASH=$COMMIT_SHORT_HASH" >> /tmp/claudia_commit_context
 else
@@ -263,85 +306,59 @@ else
 fi
 '
 
-## Update Ticket with Commit Information
+## Update Ticket File (if exists)
 
 !bash -c '
 source /tmp/claudia_commit_context
 echo ""
-echo "📝 Updating ticket with commit information..."
+echo "📝 Updating ticket file..."
 
-# Update implementation section in ticket
-TIMESTAMP=$(date)
-BRANCH=$(git branch --show-current)
+# Look for ticket file in 5-tickets/ folder
+TICKET_FILE=$(find .claude-shared/project-management/5-tickets/ -name "*-issue-${ISSUE_NUMBER}-*.md" 2>/dev/null | head -1)
 
-# Add commit information to ticket
-sed -i "s/\*\*Implementation PR:\*\* (Will be populated by \/claudia:commit)/\*\*Implementation PR:\*\* Commit: $COMMIT_SHORT_HASH - Pending PR creation/" "$TICKET_PATH"
-
-# Update or add completion section
-if grep -q "## Implementation Progress" "$TICKET_PATH"; then
-    # Update existing section
-    sed -i "/## Implementation Progress/,/^---/ {
-        s/- \[ \] Phase 4: Tests passing/- [x] Phase 4: Tests passing ($TEST_STATUS)/
-        s/- \[ \] Phase 5: Code refactored and optimized/- [x] Phase 5: Code refactored and optimized/
-    }" "$TICKET_PATH"
+if [ -z "$TICKET_FILE" ]; then
+    echo "ℹ️  No local ticket file found (this is okay)"
 else
-    # Add completion section
-    cat >> "$TICKET_PATH" << EOF
+    echo "📄 Found ticket: $TICKET_FILE"
 
-## Implementation Completed
+    # Update ticket with commit information
+    TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
 
-**Completed:** $TIMESTAMP  
-**Commit:** \`$COMMIT_SHORT_HASH\` - $COMMIT_HASH  
-**Branch:** \`$BRANCH\`  
-**Files Changed:** $FILES_CHANGED  
-**Lines:** +$ADDITIONS/-$DELETIONS  
+    # Check if commits section exists
+    if grep -q "### Commits" "$TICKET_FILE"; then
+        # Add to existing commits section
+        sed -i "" "/### Commits/a\\
+- [\`$COMMIT_SHORT_HASH\`] $COMMIT_SUMMARY ($TIMESTAMP)
+" "$TICKET_FILE"
+    else
+        # Create commits section
+        cat >> "$TICKET_FILE" << EOF
 
-### Final Status
-- [x] Implementation completed
-- [x] Commit created with full traceability
-- [x] Tests status: $TEST_STATUS
-- [x] Linting status: $LINT_STATUS  
-- [ ] PR created and reviewed
-- [ ] Merged to main branch
+## Implementation Tracking
 
----
-*Completed by Claudia Automation - $TIMESTAMP*
+### Commits
+- [\`$COMMIT_SHORT_HASH\`] $COMMIT_SUMMARY ($TIMESTAMP)
+
 EOF
-fi
+    fi
 
-echo "✅ Updated ticket document with commit information"
+    echo "✅ Updated ticket file with commit information"
+fi
 '
 
-## Update Ticket with Commit Information
-
-!bash -c '
-source /tmp/claudia_commit_context
-
-echo ""
-echo "📝 Updating ticket with commit information..."
-
-# Update ticket with latest commit
-if grep -q "**Implementation Commits:**" "$TICKET_PATH"; then
-    # Add to existing commits section
-    sed -i "/\*\*Implementation Commits:\*\*/a - [\`$COMMIT_SHORT_HASH\`](https://github.com/penomoprotocol/penomo-api/commit/$COMMIT_HASH) - $COMMIT_MESSAGE" "$TICKET_PATH"
-else
-    # Create commits section 
-    sed -i "s/\*\*Implementation PR:\*\* (Will be populated by \/claudia:commit)/\*\*Implementation Commits:\*\*\n- [\`$COMMIT_SHORT_HASH\`](https:\/\/github.com\/penomoprotocol\/penomo-api\/commit\/$COMMIT_HASH) - $COMMIT_MESSAGE\n\n\*\*Implementation PR:\*\* (Use \/claudia:pr:create to create PR)/" "$TICKET_PATH"
-fi
-
-echo "✅ Updated ticket with commit information"
-'
-
-## Log Commit to Traceability System
+## Log Commit to Audit Trail
 
 !bash -c '
 source /tmp/claudia_commit_context
 TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# Log commit with full traceability
-echo "{\"timestamp\":\"$TIMESTAMP\",\"action\":\"committed\",\"ticket_uuid\":\"$TICKET_UUID\",\"requirement_uuid\":\"$REQ_UUID\",\"hash\":\"$COMMIT_HASH\",\"short_hash\":\"$COMMIT_SHORT_HASH\",\"message\":\"$COMMIT_MESSAGE\",\"type\":\"$COMMIT_TYPE\",\"scope\":\"$SCOPE\",\"files_changed\":$FILES_CHANGED,\"additions\":$ADDITIONS,\"deletions\":$DELETIONS,\"test_status\":\"$TEST_STATUS\",\"lint_status\":\"$LINT_STATUS\",\"branch\":\"$(git branch --show-current)\"}" >> .claude-shared/project-management/data/commits-log.jsonl
+# Ensure data directory exists
+mkdir -p .claude-shared/project-management/data
 
-echo "📊 Logged commit to traceability system"
+# Log commit with full traceability
+echo "{\"timestamp\":\"$TIMESTAMP\",\"action\":\"commit\",\"issue_number\":$ISSUE_NUMBER,\"commit_hash\":\"$COMMIT_HASH\",\"short_hash\":\"$COMMIT_SHORT_HASH\",\"message\":\"$COMMIT_SUMMARY\",\"type\":\"$COMMIT_TYPE\",\"scope\":\"$SCOPE\",\"files_changed\":$FILES_CHANGED,\"additions\":$ADDITIONS,\"deletions\":$DELETIONS,\"branch\":\"$TARGET_BRANCH\"}" >> .claude-shared/project-management/data/commits-log.jsonl
+
+echo "📊 Logged commit to audit trail"
 '
 
 ## Summary and Next Steps
@@ -350,42 +367,29 @@ echo "📊 Logged commit to traceability system"
 source /tmp/claudia_commit_context
 
 echo ""
-echo "✅ **Commit Complete**"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ COMMIT COMPLETE"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "**Commit Details:**"
-echo "- **Hash:** \`$COMMIT_SHORT_HASH\`"
-echo "- **Message:** $COMMIT_MESSAGE"
-echo "- **Type:** $COMMIT_TYPE($SCOPE)"
-echo "- **Files Changed:** $FILES_CHANGED (+$ADDITIONS/-$DELETIONS)"
-echo "- **Branch:** $(git branch --show-current)"
+echo "📝 Commit Details:"
+echo "   Hash: $COMMIT_SHORT_HASH"
+echo "   Type: $COMMIT_TYPE"
+echo "   Issue: #$ISSUE_NUMBER - $ISSUE_TITLE"
+echo "   Branch: $TARGET_BRANCH"
+echo "   Changes: $FILES_CHANGED files (+$ADDITIONS/-$DELETIONS lines)"
 echo ""
-echo "**Quality Status:**"
-echo "- **Tests:** $TEST_STATUS"
-echo "- **Linting:** $LINT_STATUS"
+echo "🔗 GitHub Issue: https://github.com/$(git remote get-url origin | sed "s/.*github.com[:/]\(.*\)\.git/\1/")/issues/$ISSUE_NUMBER"
 echo ""
-echo "**Updated Files:**"
-echo "- 📄 $TICKET_PATH (commit logged)"
-echo "- 📊 .claude-shared/project-management/data/commits-log.jsonl (audit trail)"
+echo "📋 Next Steps:"
+echo "   1. Continue development: /claudia:commit \"$ISSUE_NUMBER\" \"description\""
+echo "   2. Push changes: git push -u origin $TARGET_BRANCH"
+echo "   3. Create PR: /claudia:pr:create \"$ISSUE_NUMBER\""
 echo ""
-echo "**Next Steps:**"
-echo "1. 📝 Continue development: /claudia:commit \"$TICKET_UUID\" (for additional commits)"
-echo "2. 🚀 Create Pull Request: /claudia:pr:create \"$TICKET_UUID\""
-echo "3. 📚 Update documentation: /claudia:docs:update \"$COMMIT_SHORT_HASH\""
-echo "4. ✅ Complete ticket: /claudia:ticket:complete \"$TICKET_UUID\" (when fully done)"
-echo ""
-echo "**Multiple Commits Supported:**"
-echo "- This ticket can have multiple commits for iterative development"
-echo "- Each commit is tracked separately in the ticket document"
-echo "- GitHub issue remains open until ticket is marked complete"
-echo ""
-echo "**Full Traceability Chain:**"
-echo "Requirement: \`$REQ_UUID\` → Ticket: \`$TICKET_UUID\` → Commit: \`$COMMIT_SHORT_HASH\`"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 '
 
 ## Cleanup
 
 !bash -c 'rm -f /tmp/claudia_commit_context'
 
-!echo "📝 Commit workflow completed successfully"
-!echo "🔗 Full traceability maintained - multiple commits per ticket supported"
-!echo "🚀 Ready for PR creation, documentation updates, or additional commits"
+!echo "✅ Commit workflow completed successfully"

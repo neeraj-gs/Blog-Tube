@@ -1,4 +1,8 @@
-name: 🤖 Claude Code AI Automation
+name: 🤖 Claude Code AI Automation (DISABLED - Manual Implementation Required)
+
+# This workflow is DISABLED to prevent automatic PR creation
+# Issues will be tracked but NOT automatically implemented
+# Use Claudia commands manually for implementation
 
 on:
   issues:
@@ -15,10 +19,10 @@ permissions:
   repository-projects: write
 
 jobs:
-  claude-automation:
+  store-issue-ticket:
     runs-on: ubuntu-latest
-    if: github.event.action == 'opened' || (github.event.action == 'created' && contains(github.event.comment.body, '@claude-automate'))
-    
+    if: github.event.action == 'opened'
+
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
@@ -33,97 +37,143 @@ jobs:
           git config --global user.email "ai-automation@blogtube.com"
           echo "✅ Git identity configured"
 
-      - name: 🔧 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: 📦 Install Dependencies
-        run: |
-          echo "🔧 Installing automation dependencies..."
-          cd automation && npm install
-          echo "✅ Automation dependencies installed"
-
-      - name: 🤖 Run Claude Code Automation
+      - name: 📝 Store Issue Copy in Tickets Folder
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_LABELS: ${{ toJson(github.event.issue.labels) }}
-          ISSUE_USER: ${{ github.event.issue.user.login }}
-          REPOSITORY_NAME: ${{ github.repository }}
-          REPOSITORY_OWNER: ${{ github.repository_owner }}
-          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          echo "🚀 Starting BlogTube AI Automation..."
-          echo "📋 Issue: #${{ github.event.issue.number }} - ${{ github.event.issue.title }}"
-          
-          # Install GitHub CLI if not available
-          echo "🔧 Setting up GitHub CLI..."
-          if ! command -v gh &> /dev/null; then
-            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-            sudo apt update
-            sudo apt install gh
-          fi
-          echo "✅ GitHub CLI ready"
-          
-          # Claude Code Task tool will be used directly within the automation system
-          echo "🤖 Claude Code Task tool integration ready"
-          
-          echo "🎯 Launching Claude Code Automation System..."
-          echo "Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}"
-          
-          # Run the Claude Code integration script
-          node automation/claude-code-integration.js
+          echo "📝 Storing issue copy in tickets folder..."
 
-      - name: 🔍 Validate Changes
-        if: success()
-        run: |
-          echo "🔍 Validating automation results..."
-          
-          # Check if any changes were made
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "📁 Changes detected:"
-            git status --short
-            echo "✅ Code changes successfully made by automation"
-          else
-            echo "ℹ️ No code changes made (might be documentation or analysis only)"
-          fi
-          
-          echo "🧪 Running basic validation..."
-          if [ -f "frontend/package.json" ]; then
-            echo "Validating frontend changes..."
-            cd frontend && npm install --silent && npm run build
-          fi
-          if [ -f "backend/package.json" ]; then
-            echo "Validating backend changes..."
-            cd backend && npm install --silent && npm run build --if-present
-          fi
-          
-          echo "✅ Validation completed"
+          # Determine sprint number from issue labels or default to latest
+          SPRINT_NUM="002"
 
-      - name: 📊 Report Automation Status
+          # Create safe filename
+          SAFE_TITLE=$(echo "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 ]//g' | tr ' ' '-' | cut -c1-50)
+          TICKET_FILE=".claude-shared/project-management/5-tickets/${SPRINT_NUM}-issue-${ISSUE_NUMBER}-${SAFE_TITLE}.md"
+
+          # Ensure tickets directory exists
+          mkdir -p .claude-shared/project-management/5-tickets
+
+          # Create ticket file with proper escaping
+          cat > "$TICKET_FILE" << EOF
+          # Issue #${ISSUE_NUMBER} - ${ISSUE_TITLE}
+
+          **Ticket ID:** \`${SPRINT_NUM}-issue-${ISSUE_NUMBER}\`
+          **Sprint:** ${SPRINT_NUM}
+          **GitHub Issue:** #${ISSUE_NUMBER}
+          **Created:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Status:** Open
+
+          ## Issue Content (Copy from GitHub)
+
+          ${ISSUE_BODY}
+
+          ## Implementation Tracking
+
+          ### Commits
+          *Will be populated when commits are made using /claudia:commit*
+
+          ### Pull Requests
+          *Will be populated when PRs are created using /claudia:pr:create*
+
+          ### Status Updates
+          - **$(date -u +"%Y-%m-%d %H:%M:%S UTC")**: Issue created and stored in tickets folder
+          - ⚠️ **Manual implementation required** - No automatic PR will be created
+
+          ## Implementation Instructions
+
+          To implement this issue, use the following Claudia commands:
+
+          1. Review the issue and plan implementation
+          2. Make code changes manually or using Claude Code
+          3. Commit changes: \`/claudia:commit "${SPRINT_NUM}-issue-${ISSUE_NUMBER}"\`
+          4. Create PR: \`/claudia:pr:create "${SPRINT_NUM}-issue-${ISSUE_NUMBER}"\`
+
+          ## Traceability
+
+          **Sprint:** ${SPRINT_NUM}
+          **Sprint Document:** \`.claude-shared/project-management/3-sprints/${SPRINT_NUM}.md\`
+          **GitHub Issue:** #${ISSUE_NUMBER}
+
+          ---
+          *Managed by Claudia Automation System*
+          *⚠️ Automatic PR creation DISABLED - Manual implementation required*
+          EOF
+
+          echo "✅ Ticket copy stored: $TICKET_FILE"
+
+          # Commit and push the ticket file
+          git add "$TICKET_FILE"
+          git commit -m "docs: store ticket copy for issue #${ISSUE_NUMBER}"
+          git push
+
+          echo "✅ Ticket file committed and pushed"
+
+      - name: 💬 Comment on Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue.number;
+
+            const comment = `## 📋 Issue Tracked by Claudia System
+
+            ✅ This issue has been recorded in the Claudia project management system.
+
+            **Ticket Location:** \`.claude-shared/project-management/5-tickets/002-issue-${issueNumber}-*.md\`
+
+            ### ⚠️ Manual Implementation Required
+
+            **Automatic PR creation is DISABLED.** To implement this issue, use the following commands:
+
+            1. **Review & Plan:**
+               \`\`\`bash
+               # Review the sprint document and plan implementation
+               # Sprint doc: .claude-shared/project-management/3-sprints/002.md
+               \`\`\`
+
+            2. **Implement Changes:**
+               \`\`\`bash
+               # Make your code changes manually or with Claude Code
+               \`\`\`
+
+            3. **Commit Changes:**
+               \`\`\`bash
+               /claudia:commit "002-issue-${issueNumber}" "feat: your commit message"
+               \`\`\`
+
+            4. **Create Pull Request:**
+               \`\`\`bash
+               /claudia:pr:create "002-issue-${issueNumber}"
+               \`\`\`
+
+            ### 📚 Documentation
+            - [Claudia Workflow Guide](/.claude-shared/project-management/CLAUDE.md)
+            - [Sprint 002 Document](/.claude-shared/project-management/3-sprints/002.md)
+
+            ---
+            🤖 *Automated by Claudia System - Manual implementation workflow*`;
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: comment
+            });
+
+      - name: 📊 Report Status
         if: always()
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "📊 BlogTube AI Automation Workflow Summary"
+          echo "📊 Issue Tracking Summary"
           echo "=============================================="
           echo "Issue: #${{ github.event.issue.number }} - ${{ github.event.issue.title }}"
-          echo "Status: ${{ job.status }}"
+          echo "Status: Issue stored in tickets folder"
+          echo "Action: Manual implementation required"
           echo "Repository: ${{ github.repository }}"
           echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
-          
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ BlogTube AI automation completed successfully!"
-            echo "🔍 Check the issue for automation results and potential PR"
-          else
-            echo "❌ BlogTube AI automation encountered issues"
-            echo "🔍 Check the workflow logs for error details"
-          fi
-          
+          echo ""
+          echo "⚠️ AUTOMATIC PR CREATION DISABLED"
+          echo "✅ Use Claudia commands for manual implementation"
           echo "=============================================="
