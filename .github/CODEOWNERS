@@ -1,0 +1,48 @@
+# Code Owners Configuration for Claudia Workflow
+
+# Global rules - all files require review
+* @neerajgs
+
+# Claudia workflow files require special attention
+.claude/ @neerajgs
+.claude-shared/ @neerajgs
+.github/workflows/ @neerajgs
+
+# Critical configuration files
+package.json @neerajgs
+package-lock.json @neerajgs
+yarn.lock @neerajgs
+Dockerfile @neerajgs
+docker-compose*.yml @neerajgs
+
+# Backend changes require backend specialist review
+backend/ @neerajgs
+api/ @neerajgs
+
+# Frontend changes require frontend specialist review
+frontend/ @neerajgs
+src/ @neerajgs
+
+# Database migrations require special review
+**/migrations/ @neerajgs
+**/schema/ @neerajgs
+
+# Documentation changes
+README.md @neerajgs
+CLAUDE.md @neerajgs
+docs/ @neerajgs
+
+# Security-sensitive files
+.env* @neerajgs
+*.key @neerajgs
+*.pem @neerajgs
+security/ @neerajgs
+
+# Infrastructure and deployment
+infrastructure/ @neerajgs
+deployment/ @neerajgs
+.github/workflows/ @neerajgs
+
+# Emergency bypass files (require multiple approvals)
+.github/emergency-bypass.md @neerajgs
+.github/scripts/emergency-*.sh @neerajgs

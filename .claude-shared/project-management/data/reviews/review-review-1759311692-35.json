@@ -1,0 +1,51 @@
+{
+  "review_id": "review-1759311692-35",
+  "pr_number": 35,
+  "pr_title": "🤖 Removal of Theme Toggle",
+  "pr_author": "github-actions",
+  "reviewer": "neeraj-gs",
+  "timestamp": "2025-10-01T09:42:25Z",
+  "pr_url": "https://github.com/neeraj-gs/Blog-Tube/pull/35",
+  "branch_info": {
+    "head": "issue-34-removal-of-theme-toggle",
+    "base": "main"
+  },
+  "pr_status": {
+    "state": "OPEN",
+    "is_draft": false,
+    "review_decision": "PENDING",
+    "mergeable": "UNKNOWN"
+  },
+  "files_analysis": {
+    "total_files": 5,
+    "changed_files": [
+      "automation/logs/activity.log",
+      "automation/logs/coordination-state.json",
+      "automation/logs/metrics.json",
+      "frontend/app/layout.tsx",
+      "frontend/components/ui/theme-toggle.tsx"
+    ],
+    "file_types": {
+      "typescript": 2,
+      "config": 2,
+      "logs": 1
+    }
+  },
+  "code_stats": {
+    "additions": 90,
+    "deletions": 7
+  },
+  "review_status": "started",
+  "checklist": {
+    "code_quality": "pending",
+    "architecture": "pending",
+    "security": "pending",
+    "testing": "pending",
+    "documentation": "pending"
+  },
+  "next_actions": [
+    "Run automated analysis with /claudia:review:analyze 35",
+    "Perform interactive review with /claudia:review:interactive 35",
+    "Submit review feedback on GitHub"
+  ]
+}

@@ -1,0 +1,32 @@
+# Sprint Management Project Configuration
+name: "Claudia Sprint Management"
+description: "Sprint-based development workflow with automated tracking"
+
+custom_fields:
+  - name: "Sprint Number"
+    type: "single_select"
+    options: ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"]
+
+  - name: "Sprint Status"
+    type: "single_select"
+    options: ["Planning", "Active", "Review", "Completed", "Archived"]
+
+  - name: "Requirements Count"
+    type: "number"
+
+  - name: "Completed Requirements"
+    type: "number"
+
+  - name: "Progress"
+    type: "number"
+
+views:
+  - name: "Active Sprints"
+    layout: "board"
+    group_by: "Sprint Status"
+
+  - name: "Sprint Timeline"
+    layout: "timeline"
+
+  - name: "All Sprints"
+    layout: "table"

@@ -1,0 +1,56 @@
+# GitHub Discussions Categories for Claudia Workflow
+
+categories:
+  # Sprint Planning & Review
+  - name: "Sprint Planning"
+    emoji: "🚀"
+    description: "Sprint planning discussions, retrospectives, and sprint-related coordination"
+    format: "open-ended-discussion"
+
+  # Requirements & Architecture
+  - name: "Requirements Analysis"
+    emoji: "🔍"
+    description: "Requirements discussion, clarification, and architectural decisions"
+    format: "open-ended-discussion"
+
+  # Technical Implementation
+  - name: "Technical Discussion"
+    emoji: "🛠️"
+    description: "Technical implementation discussions, code architecture, and development approaches"
+    format: "open-ended-discussion"
+
+  # Claudia Workflow
+  - name: "Claudia Workflow"
+    emoji: "🤖"
+    description: "Questions, issues, and improvements related to Claudia automation workflow"
+    format: "question-answer"
+
+  # Team Coordination
+  - name: "Team Coordination"
+    emoji: "👥"
+    description: "Team coordination, announcements, and general project communication"
+    format: "announcement"
+
+  # Code Review & Quality
+  - name: "Code Review Discussion"
+    emoji: "👀"
+    description: "Code review discussions, quality gates, and best practices"
+    format: "open-ended-discussion"
+
+  # Emergency & Incidents
+  - name: "Incident Response"
+    emoji: "🚨"
+    description: "Emergency response coordination and post-incident reviews"
+    format: "open-ended-discussion"
+
+  # Process Improvement
+  - name: "Process Improvement"
+    emoji: "📈"
+    description: "Suggestions for improving development processes and workflows"
+    format: "idea"
+
+  # General Q&A
+  - name: "General Q&A"
+    emoji: "❓"
+    description: "General questions about the project, tools, or processes"
+    format: "question-answer"

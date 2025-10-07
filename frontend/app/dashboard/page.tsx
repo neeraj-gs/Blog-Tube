@@ -75,10 +75,6 @@ export default function DashboardPage() {
   };
 
   const handleSubmit = async () => {
-    console.log("Starting blog generation...");
-    console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);
-    console.log("User:", user?.id);
-    
     if (inputMode === "text" && !textPrompt.trim()) {
       toast({
         title: "Error",
@@ -111,11 +107,8 @@ export default function DashboardPage() {
     try {
       let response;
       const token = await getToken();
-      console.log("Auth token:", token ? "Present" : "Missing");
-      
       if (inputMode === "youtube") {
         // First, fetch transcript
-        console.log("Fetching YouTube transcript...");
         const transcriptRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/youtube/transcript`, {
           method: "POST",
           headers: {
@@ -148,7 +141,6 @@ export default function DashboardPage() {
         });
       } else {
         // Generate blog from text prompt
-        console.log("Generating blog from text prompt...");
         response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/prompts`, {
           method: "POST",
           headers: {
@@ -161,8 +153,6 @@ export default function DashboardPage() {
           }),
         });
       }
-      
-      console.log("Response status:", response.status);
 
       if (!response.ok) {
         const error = await response.json();
@@ -231,7 +221,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="container mx-auto p-4 max-w-6xl">
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">

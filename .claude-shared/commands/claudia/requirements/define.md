@@ -61,7 +61,7 @@ if [[ ! "$SPRINT_NUMBER" =~ ^[0-9]{3}$ ]]; then
 fi
 
 # Check if sprint exists
-if [ ! -f "docs/3-sprints/$SPRINT_NUMBER.md" ]; then
+if [ ! -f ".claude-shared/project-management/3-sprints/$SPRINT_NUMBER.md" ]; then
     echo "❌ ERROR: Sprint $SPRINT_NUMBER does not exist"
     echo "Create it first: /claudia:sprint:create \"$SPRINT_NUMBER\""
     exit 1
@@ -142,11 +142,15 @@ echo "DESCRIPTION=\"$DESCRIPTION\"" >> /tmp/claudia_req_context
 source /tmp/claudia_req_context
 
 # Generate next requirement number for this sprint
-EXISTING_REQS=$(find docs/4-requirements/ -name "$SPRINT_NUMBER-*.md" 2>/dev/null | wc -l | tr -d " ")
+mkdir -p .claude-shared/project-management/4-requirements
+EXISTING_REQS=0
+if ls .claude-shared/project-management/4-requirements/$SPRINT_NUMBER-*.md 1> /dev/null 2>&1; then
+    EXISTING_REQS=$(ls .claude-shared/project-management/4-requirements/$SPRINT_NUMBER-*.md | wc -l)
+fi
 NEXT_REQ_NUM=$(printf "%02d" $((EXISTING_REQS + 1)))
 
 # Create safe slug from description
-SAFE_SLUG=$(echo "$DESCRIPTION" | tr "[:upper:]" "[:lower:]" | sed "s/[^a-z0-9 ]//g" | tr " " "-" | sed "s/--*/-/g" | sed "s/^-\|-$//g" | head -c 30)
+SAFE_SLUG=$(echo "$DESCRIPTION" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 ]//g' | tr ' ' '-' | sed 's/--*/-/g' | sed 's/^-\|-$//g' | cut -c1-30)
 
 REQ_UUID="$SPRINT_NUMBER-$NEXT_REQ_NUM-$SAFE_SLUG"
 
@@ -164,7 +168,8 @@ echo ""
 echo "📄 Creating requirement document..."
 
 # Create requirement document with interactive or basic content
-cat > "docs/4-requirements/$REQ_UUID.md" << EOF
+mkdir -p .claude-shared/project-management/4-requirements
+cat > ".claude-shared/project-management/4-requirements/$REQ_UUID.md" << EOF
 # $DESCRIPTION
 
 **Requirement ID:** \`$REQ_UUID\`  
@@ -307,14 +312,14 @@ echo ""
 echo "📄 Updating sprint document..."
 
 # Add requirement to sprint document
-if ! grep -q "^- \[\`$REQ_UUID\`\]" "docs/3-sprints/$SPRINT_NUMBER.md"; then
+if ! grep -q "^- \[\`$REQ_UUID\`\]" ".claude-shared/project-management/3-sprints/$SPRINT_NUMBER.md"; then
     # Add to requirements section
-    sed -i "/<!-- Requirements will be added automatically when created with --sprint parameter -->/a - [\`$REQ_UUID\`](../4-requirements/$REQ_UUID.md) - $DESCRIPTION" "docs/3-sprints/$SPRINT_NUMBER.md"
+    sed -i "/<!-- Requirements will be added automatically when created with --sprint parameter -->/a - [\`$REQ_UUID\`](../4-requirements/$REQ_UUID.md) - $DESCRIPTION" ".claude-shared/project-management/3-sprints/$SPRINT_NUMBER.md"
     
     # Update metrics
-    CURRENT_PLANNED=$(grep "Planned Requirements:" "docs/3-sprints/$SPRINT_NUMBER.md" | grep -o "[0-9]*")
+    CURRENT_PLANNED=$(grep "Planned Requirements:" ".claude-shared/project-management/3-sprints/$SPRINT_NUMBER.md" | grep -o "[0-9]*")
     NEW_PLANNED=$((CURRENT_PLANNED + 1))
-    sed -i "s/\*\*Planned Requirements:\*\* [0-9]*/\*\*Planned Requirements:\*\* $NEW_PLANNED/" "docs/3-sprints/$SPRINT_NUMBER.md"
+    sed -i "s/\*\*Planned Requirements:\*\* [0-9]*/\*\*Planned Requirements:\*\* $NEW_PLANNED/" ".claude-shared/project-management/3-sprints/$SPRINT_NUMBER.md"
     
     echo "✅ Updated sprint document with new requirement"
 else
@@ -350,7 +355,7 @@ echo "✅ **Requirement Definition Complete**"
 echo ""
 echo "**Created:**"
 echo "- 📄 Requirement Document: docs/4-requirements/$REQ_UUID.md"
-echo "- 🚀 Added to Sprint: docs/3-sprints/$SPRINT_NUMBER.md"
+echo "- 🚀 Added to Sprint: .claude-shared/project-management/3-sprints/$SPRINT_NUMBER.md"
 echo "- 📊 Audit Logs: requirements-log.jsonl, sprints-log.jsonl"
 echo ""
 echo "**Requirement Details:**"

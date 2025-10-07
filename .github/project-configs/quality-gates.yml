@@ -1,0 +1,34 @@
+# Quality Gates Project Configuration
+name: "Claudia Quality Gates"
+description: "Code review, testing, and deployment tracking"
+
+custom_fields:
+  - name: "Review Status"
+    type: "single_select"
+    options: ["Pending", "In Review", "Changes Requested", "Approved", "Merged"]
+
+  - name: "Test Coverage"
+    type: "number"
+
+  - name: "Security Scan"
+    type: "single_select"
+    options: ["Not Run", "Passed", "Failed", "Warnings"]
+
+  - name: "Quality Score"
+    type: "number"
+
+  - name: "Deployment Status"
+    type: "single_select"
+    options: ["Not Deployed", "Dev", "Staging", "Production"]
+
+views:
+  - name: "Review Pipeline"
+    layout: "board"
+    group_by: "Review Status"
+
+  - name: "Quality Dashboard"
+    layout: "table"
+
+  - name: "Deployment Tracking"
+    layout: "board"
+    group_by: "Deployment Status"

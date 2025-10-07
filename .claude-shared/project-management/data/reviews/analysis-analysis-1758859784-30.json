@@ -1,0 +1,43 @@
+{
+  "analysis_id": "analysis-1758859784-30",
+  "pr_number": 30,
+  "pr_title": "Implement Theme Toggle",
+  "pr_author": "neeraj-gs",
+  "analyzer": "neeraj-gs",
+  "timestamp": "2025-09-26T04:10:13Z",
+  "pr_url": "https://github.com/neeraj-gs/Blog-Tube/pull/30",
+  "file_analysis": {
+    "total_files": 63,
+    "js_ts_files": 8,
+    "style_files": 0,
+    "test_files": 0,
+    "config_files": 8,
+    "markdown_files": 19,
+    "package_files": 2
+  },
+  "security_analysis": {
+    "score": 60,
+    "issues": "🚨 Potential hardcoded credentials detected",
+    "warnings": ""
+  },
+  "quality_analysis": {
+    "score": 85,
+    "issues": "",
+    "suggestions": "💡 2 TODO/FIXME comments added - consider addressing before merge",
+    "todo_count": 2
+  },
+  "test_analysis": {
+    "score": 20,
+    "test_ratio": 0,
+    "feedback": "⚠️  No test files found for code changes"
+  },
+  "overall_assessment": {
+    "score": 58,
+    "risk_level": "HIGH"
+  },
+  "recommendations": [
+    "🚨 Review potential hardcoded credentials",
+    "🧪 Add unit tests for theme toggle functionality",
+    "📝 Address TODO/FIXME comments before merge"
+  ]
+}

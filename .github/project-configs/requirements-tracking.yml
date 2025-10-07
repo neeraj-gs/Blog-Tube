@@ -1,0 +1,35 @@
+# Requirements Tracking Project Configuration
+name: "Claudia Requirements Tracking"
+description: "Requirement definition and tracking system"
+
+custom_fields:
+  - name: "Requirement ID"
+    type: "text"
+
+  - name: "Sprint"
+    type: "single_select"
+    options: ["001", "002", "003", "004", "005"]
+
+  - name: "Priority"
+    type: "single_select"
+    options: ["Critical", "High", "Medium", "Low"]
+
+  - name: "Status"
+    type: "single_select"
+    options: ["Draft", "Approved", "In Progress", "Testing", "Completed"]
+
+  - name: "Environment"
+    type: "single_select"
+    options: ["dev", "staging", "production"]
+
+views:
+  - name: "By Priority"
+    layout: "board"
+    group_by: "Priority"
+
+  - name: "By Sprint"
+    layout: "board"
+    group_by: "Sprint"
+
+  - name: "All Requirements"
+    layout: "table"

@@ -1,0 +1,33 @@
+# Implementation Pipeline Project Configuration
+name: "Claudia Implementation Pipeline"
+description: "Ticket implementation and development tracking"
+
+custom_fields:
+  - name: "Ticket ID"
+    type: "text"
+
+  - name: "Implementation Status"
+    type: "single_select"
+    options: ["Backlog", "Ready", "In Progress", "Code Review", "Testing", "Done"]
+
+  - name: "Developer"
+    type: "text"
+
+  - name: "TDD Status"
+    type: "single_select"
+    options: ["Tests Written", "Tests Passing", "No Tests", "Needs Tests"]
+
+  - name: "Effort (Story Points)"
+    type: "number"
+
+views:
+  - name: "Kanban Board"
+    layout: "board"
+    group_by: "Implementation Status"
+
+  - name: "Current Sprint"
+    layout: "table"
+
+  - name: "By Developer"
+    layout: "board"
+    group_by: "Developer"

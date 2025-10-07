@@ -1,0 +1,106 @@
+name: Discussions Automation
+
+on:
+  discussion:
+    types: [created, edited, answered, category_changed]
+  discussion_comment:
+    types: [created, edited]
+
+jobs:
+  auto-label:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'created'
+    steps:
+      - name: Auto-label based on category
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const categoryLabels = {
+              'Sprint Planning': ['claudia:sprint', 'discussion:planning'],
+              'Requirements Analysis': ['claudia:requirement', 'discussion:requirements'],
+              'Technical Discussion': ['discussion:technical'],
+              'Claudia Workflow': ['claudia:workflow', 'discussion:process'],
+              'Team Coordination': ['discussion:team'],
+              'Code Review Discussion': ['discussion:review'],
+              'Incident Response': ['priority:critical', 'discussion:incident'],
+              'Process Improvement': ['discussion:improvement']
+            };
+
+            const category = context.payload.discussion.category.name;
+            const labels = categoryLabels[category] || [];
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.discussion.number,
+                labels: labels
+              });
+            }
+
+  notify-team:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'created' && contains(github.event.discussion.category.name, 'Sprint Planning')
+    steps:
+      - name: Notify team of sprint planning
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const message = `
+            🚀 New Sprint Planning Discussion Created!
+
+            **Title**: ${context.payload.discussion.title}
+            **Created by**: @${context.payload.discussion.user.login}
+            **Link**: ${context.payload.discussion.html_url}
+
+            Please review and participate in the planning discussion.
+            `;
+
+            // Add comment mentioning team (customize as needed)
+            await github.rest.discussions.createDiscussionComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              discussion_number: context.payload.discussion.number,
+              body: `👥 Team members please review and participate:\n\n@${context.repo.owner} - Please assign relevant team members`
+            });
+
+  track-decisions:
+    runs-on: ubuntu-latest
+    if: contains(github.event.discussion.body, 'Decision:') || contains(github.event.discussion.body, 'DECIDED:')
+    steps:
+      - name: Track architectural decisions
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Create an issue to track the decision implementation
+            const title = `[ADR] Implement decision from discussion: ${context.payload.discussion.title}`;
+            const body = `
+            ## Architectural Decision Record
+
+            **Source Discussion**: ${context.payload.discussion.html_url}
+            **Decision Date**: ${new Date().toISOString().split('T')[0]}
+            **Status**: To Be Implemented
+
+            ## Context
+            Decision made in team discussion: ${context.payload.discussion.title}
+
+            ## Decision
+            [Extract decision details from discussion]
+
+            ## Implementation Tasks
+            - [ ] Update documentation
+            - [ ] Implement changes
+            - [ ] Update tests
+            - [ ] Communicate to team
+
+            ---
+            *Auto-created from discussion decision tracking*
+            `;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['type:decision', 'claudia:implementation', 'auto-created']
+            });

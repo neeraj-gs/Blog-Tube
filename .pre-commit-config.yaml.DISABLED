@@ -1,0 +1,85 @@
+# Pre-commit hooks for Claudia Workflow Enforcement
+
+repos:
+  # Claudia Workflow Validation (custom hooks)
+  - repo: local
+    hooks:
+      - id: claudia-workflow-validation
+        name: Claudia Workflow Validation
+        entry: .github/hooks/claudia-workflow-validator.sh
+        language: script
+        stages: [pre-commit]
+        pass_filenames: false
+        always_run: true
+
+      - id: claudia-commit-message-validation
+        name: Claudia Commit Message Validation
+        entry: .github/hooks/claudia-commit-validator.sh
+        language: script
+        stages: [commit-msg]
+        pass_filenames: false
+
+      - id: claudia-emergency-bypass-check
+        name: Emergency Bypass Authorization Check
+        entry: .github/hooks/claudia-emergency-validator.sh
+        language: script
+        stages: [pre-commit]
+        pass_filenames: false
+        always_run: true
+
+  # Standard code quality hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '^\.claude-shared/.*\.md$'
+      - id: end-of-file-fixer
+        exclude: '^\.claude-shared/.*\.md$'
+      - id: check-yaml
+        exclude: '^\.claude-shared/.*\.ya?ml$'
+      - id: check-json
+        exclude: '^\.claude-shared/.*\.json$'
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: name-tests-test
+        args: ['--pytest-test-first']
+
+  # Security hooks
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: '^\.claude-shared/.*$'
+
+  # JavaScript/TypeScript specific hooks (if applicable)
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v8.56.0
+    hooks:
+      - id: eslint
+        files: \.(js|ts|jsx|tsx)$
+        additional_dependencies:
+          - eslint@^8.0.0
+        exclude: '^\.claude-shared/.*$'
+
+  # Python hooks (if applicable)
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        exclude: '^\.claude-shared/.*\.py$'
+
+  # Dockerfile hooks (if applicable)
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        exclude: '^\.claude-shared/.*$'
+
+# Configuration
+default_stages: [pre-commit, commit-msg]
+fail_fast: true
+minimum_pre_commit_version: '3.0.0'

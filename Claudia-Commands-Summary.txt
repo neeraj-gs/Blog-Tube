@@ -1,0 +1,792 @@
+================================================================================
+                          CLAUDIA COMMANDS COMPREHENSIVE SUMMARY
+================================================================================
+
+This document provides a complete reference for all Claudia automation commands
+and related shell scripts for sprint management, development workflow, and
+project automation in the Blog-Tube repository.
+
+================================================================================
+                               CORE WORKFLOW COMMANDS
+================================================================================
+
+1. SPRINT CREATION
+------------------
+Command: /claudia:sprint:create
+Usage: /claudia:sprint:create "030" [--with-planning "path/to/planning.md"] [--title "Sprint Title"]
+Parameters:
+  - Sprint Number: 3-digit number (e.g., "030", "031", "032")
+  - --with-planning [optional]: Path to planning document for requirement extraction
+  - --title [optional]: Custom sprint title (default: "Sprint XXX")
+
+Description: Creates a new sprint document with numbered identifier and
+initializes sprint tracking. Requirements are now EMBEDDED directly in the
+sprint document (no separate requirements files). Validates sprint number
+format and checks for existing sprints to prevent duplicates.
+
+Examples:
+  /claudia:sprint:create "030"
+  → Creates: .claude-shared/project-management/3-sprints/030.md with embedded requirements template
+
+  /claudia:sprint:create "030" --with-planning ".claude-shared/planning/auth-planning.md" --title "Authentication Sprint"
+  → Creates sprint with requirements extracted from planning document
+
+Sprint Document Structure:
+  - Sprint goals and objectives
+  - Requirements (EMBEDDED - no separate files)
+  - Sprint metrics tracking
+  - Timeline information
+
+⚠️ IMPORTANT: Requirements are NO LONGER in separate 4-requirements/ files.
+All requirements live directly in the sprint document.
+
+
+2. REQUIREMENTS MANAGEMENT (DEPRECATED)
+---------------------------------------
+⚠️ THIS COMMAND IS DEPRECATED - Requirements are now embedded in sprint documents.
+
+OLD Command: /claudia:requirements:define
+NEW Approach: Edit requirements directly in sprint document
+
+Description: Requirements are NO LONGER created as separate files. Instead,
+they are embedded directly in the sprint document created by /claudia:sprint:create.
+
+To add/edit requirements:
+  1. Open sprint document: .claude-shared/project-management/3-sprints/XXX.md
+  2. Add requirements following the embedded template structure:
+
+     ### Requirement N: [Title]
+     **Priority:** High / Medium / Low
+     **Complexity:** Low / Medium / High
+     **Problem Statement:** [Description]
+     **Success Criteria:** [List]
+     **Technical Considerations:** [Notes]
+     **Acceptance Criteria:** [Checklist]
+     **Related Issues:** (Will be populated)
+
+  3. Save the file - requirements are now part of the sprint document
+
+
+3. SINGLE ISSUE CREATION (GitHub Integration)
+----------------------------------------------
+Command: /claudia:issues:create
+Usage: /claudia:issues:create "sprint-number" --requirement N [--title "Title"] [--labels "label1,label2"]
+Parameters:
+  - Sprint Number: 3-digit sprint number (e.g., "030")
+  - --requirement N: Requirement number within the sprint (e.g., 1, 2, 3)
+  - --title [optional]: Custom issue title (overrides requirement title)
+  - --labels [optional]: Comma-separated labels
+
+Description: Creates a GitHub issue from a specific requirement embedded in
+a sprint document. Automatically stores issue copy in 5-tickets/ folder,
+updates sprint document with issue link, and tracks metrics.
+
+Process Flow:
+  1. Reads sprint document (.claude-shared/project-management/3-sprints/XXX.md)
+  2. Extracts specific requirement by number
+  3. Creates GitHub issue with requirement details
+  4. Stores issue copy in .claude-shared/project-management/5-tickets/
+  5. Updates sprint document with issue link
+  6. Logs to audit trail
+
+Examples:
+  /claudia:issues:create "030" --requirement 1
+  → Creates issue from Requirement 1 in Sprint 030
+
+  /claudia:issues:create "030" --requirement 2 --title "Custom Issue Title" --labels "bug,priority-high"
+  → Creates issue with custom title and labels
+
+Output:
+  - GitHub Issue: #N with full requirement details
+  - Ticket Copy: .claude-shared/project-management/5-tickets/030-issue-N-title.md
+  - Sprint Updated: Issue link added to requirement section
+
+⚠️ IMPORTANT: No automatic PR creation. Manual implementation required.
+Use /claudia:commit and /claudia:pr:create for implementation.
+
+
+4. BULK ISSUE CREATION (GitHub Integration) ⭐ NEW
+--------------------------------------------------
+Command: /claudia:issues:multiple-create
+Usage: /claudia:issues:multiple-create "sprint-number" [--labels "label1,label2"] [--skip "1,3"]
+Parameters:
+  - Sprint Number: 3-digit sprint number (e.g., "030")
+  - --labels [optional]: Comma-separated labels applied to ALL issues
+  - --skip [optional]: Comma-separated requirement numbers to skip (e.g., "1,3,5")
+
+Description: Creates GitHub issues for ALL requirements in a sprint document
+at once. Automatically discovers all requirements, creates issues, stores
+ticket copies, and updates sprint document with all issue links.
+
+Process Flow:
+  1. Discovers all requirements in sprint document
+  2. Filters out skipped requirements (if --skip provided)
+  3. Creates GitHub issue for each requirement
+  4. Stores ticket copy for each in 5-tickets/ folder
+  5. Updates sprint document with all issue links
+  6. Updates sprint metrics
+  7. Comprehensive summary report
+
+Examples:
+  /claudia:issues:multiple-create "030"
+  → Creates issues for ALL requirements in Sprint 030
+
+  /claudia:issues:multiple-create "030" --labels "enhancement,UI"
+  → Creates issues with labels "enhancement" and "UI"
+
+  /claudia:issues:multiple-create "030" --skip "1,3"
+  → Creates issues for all requirements EXCEPT 1 and 3
+
+Output:
+  - Multiple GitHub Issues: #N, #N+1, #N+2, etc.
+  - Ticket Copies: .claude-shared/project-management/5-tickets/030-issue-*-*.md
+  - Sprint Updated: All requirement sections updated with issue links
+  - Summary Report: Shows created/failed counts
+
+Advantages:
+  - Batch processing of entire sprint
+  - Consistent labeling across all issues
+  - Time-efficient for sprints with many requirements
+  - Comprehensive progress tracking
+
+⚠️ IMPORTANT: No automatic PR creation for any issues.
+Each issue requires manual implementation workflow.
+
+
+5. PULL/LIST ISSUES (GitHub Integration)
+----------------------------------------
+Command: /claudia:issues:pull
+Usage: /claudia:issues:pull [--state open|closed|all] [--labels "label1,label2"] [--assignee "username"]
+Parameters:
+  - --state [optional]: Filter by state (default: open)
+  - --labels [optional]: Filter by labels
+  - --assignee [optional]: Filter by assignee
+
+Description: Retrieves and displays all GitHub issues with filtering options,
+status information, and integration with Claudia workflow tracking.
+
+Examples:
+  /claudia:issues:pull
+  /claudia:issues:pull --state all --labels "feature"
+  /claudia:issues:pull --assignee "neeraj-gs"
+
+
+6. TICKET MANAGEMENT
+--------------------
+Ticket Storage Location: .claude-shared/project-management/5-tickets/
+
+Description: All GitHub issues created via Claudia are automatically stored
+as local ticket copies in the 5-tickets/ folder for offline tracking and
+complete traceability.
+
+Ticket Filename Format:
+  {sprint-number}-issue-{issue-number}-{safe-title}.md
+  Example: 030-issue-42-implement-authentication.md
+
+Ticket Content:
+  - Ticket ID and metadata
+  - Full GitHub issue content
+  - Implementation tracking (commits, PRs)
+  - Status updates
+  - Implementation instructions
+  - Traceability links
+
+Automatic Updates:
+  - Created when issue is generated
+  - Updated via /claudia:commit
+  - Updated via /claudia:pr:create
+  - Tracks full implementation lifecycle
+
+
+7. IMPLEMENT MANUAL COMMAND (Collaborative Development)
+-------------------------------------------------------
+Command: /claudia:implement:manual
+Usage: /claudia:implement:manual "XXX-YY-ZZ-description"
+Parameters:
+  - Ticket UUID: Sprint-based hierarchical format (e.g., "030-01-01-database")
+
+Description: Enhanced sprint-based human-AI collaborative TDD implementation
+with multi-commit workflow support and complete traceability. Guides developer
+through test-driven development process.
+
+Examples:
+  /claudia:implement:manual "030-01-01-database"
+  /claudia:implement:manual "030-01-02-authentication"
+
+
+8. CREATE PULL REQUEST (WITH COMMIT HISTORY)
+--------------------------------------------
+Command: /claudia:pr:create
+Usage: /claudia:pr:create "issue-id"
+Parameters:
+  - Issue ID: GitHub issue number (e.g., "21", "42")
+
+Description: Creates Pull Request from existing issue and branch with ALL
+commit history and proper linking. Does NOT create new branch - uses existing
+branch created during commit workflow.
+
+Features:
+  - Verifies you're on correct branch for the issue
+  - Checks that commits exist on the branch
+  - Pushes branch to remote (if not already pushed)
+  - Fetches issue details from GitHub
+  - Gathers ALL commit messages from the branch
+  - Creates comprehensive PR description with:
+    * Issue overview and description
+    * Complete list of commits with messages
+    * Files changed count and git stats
+    * Checklist for review
+    * "Resolves #issue" footer
+  - Checks for existing PR (won't duplicate)
+  - Updates ticket file in 5-tickets/ with PR link
+  - Logs to audit trail
+
+Examples:
+  /claudia:pr:create "21"
+  → Creates PR from current branch
+  → Includes all commits made for issue #21
+  → PR description lists all commit messages
+
+  /claudia:pr:create "42"
+  → Warning if not on feature/issue-42-* branch
+  → Asks for confirmation to continue
+
+
+9. PULL ALL OPEN PRS
+--------------------
+Command: /claudia:pr:pull
+Usage: /claudia:pr:pull
+Parameters: None
+
+Description: Lists all open Pull Requests with detailed status information,
+review status indicators, merge status, and available actions.
+
+Status Indicators:
+  - Review: ✅ (approved), 🔄 (changes requested), 👀 (review required), ⏳ (pending)
+  - Merge: 🟢 (mergeable), 🔴 (conflicts), 🟡 (unknown)
+  - Draft: [DRAFT] indicator for work-in-progress
+
+Example Output:
+  PR #30 - "Implement Theme Toggle" 👀 🟢
+  Branch: feature/issue-29-implement-theme-toggle → main
+  Author: neeraj-gs | Created: 2025-09-22
+
+
+================================================================================
+                             CODE REVIEW SYSTEM COMMANDS
+================================================================================
+
+10. START CODE REVIEW
+--------------------
+Command: /claudia:review:start
+Usage: /claudia:review:start "pr-number"
+Parameters:
+  - PR Number: Pull Request number (e.g., "21", "30")
+
+Description: Initiates comprehensive code review process with automated analysis,
+structured feedback collection, and detailed reporting.
+
+Examples:
+  /claudia:review:start "30"
+  /claudia:review:start "21"
+
+
+11. AUTOMATED CODE ANALYSIS
+---------------------------
+Command: /claudia:review:analyze
+Usage: /claudia:review:analyze "pr-number"
+Parameters:
+  - PR Number: Pull Request number
+
+Description: Performs comprehensive automated analysis including:
+  - Code quality assessment (scoring)
+  - Security vulnerability scanning
+  - Test coverage analysis
+  - File type risk assessment
+  - Overall risk scoring and grading
+
+Analysis Components:
+  - Security Score: /100 (credential detection, SQL injection, XSS, etc.)
+  - Quality Score: /100 (code smells, complexity, best practices)
+  - Test Coverage Score: /100 (test file ratio, coverage analysis)
+  - Overall Grade: A-F with risk level (LOW/MEDIUM/HIGH/CRITICAL)
+
+Examples:
+  /claudia:review:analyze "30"
+  /claudia:review:analyze "21"
+
+
+12. INTERACTIVE CODE REVIEW
+----------------------------
+Command: /claudia:review:interactive
+Usage: /claudia:review:interactive "pr-number"
+Parameters:
+  - PR Number: Pull Request number
+
+Description: Guided, interactive code review process with step-by-step
+evaluation across multiple dimensions:
+
+Review Categories:
+  - Description Clarity (clear/needs_improvement/insufficient)
+  - File Scope Assessment (appropriate/broad/too_broad)
+  - Code Quality Rating (excellent/good/fair/poor)
+  - Security Evaluation (secure/minor_concerns/moderate_risks/high_risk)
+  - Testing Coverage (excellent/good/fair/poor)
+
+Final Actions:
+  - APPROVE: Ready for merge
+  - COMMENT: Feedback provided, no blocking issues
+  - REQUEST CHANGES: Issues must be fixed before merge
+
+Examples:
+  /claudia:review:interactive "30"
+  /claudia:review:interactive "21"
+
+
+================================================================================
+                           SECURITY ANALYSIS COMMANDS
+================================================================================
+
+13. COMPREHENSIVE SECURITY SCAN
+-------------------------------
+Command: /claudia:security:scan
+Usage: /claudia:security:scan
+Parameters: None
+
+Description: Performs comprehensive security scanning across the entire project:
+
+Scan Components:
+  - Dependency Vulnerability Analysis (npm audit, pip, etc.)
+  - Code Security Pattern Detection
+  - Configuration Security Review
+  - Overall Security Scoring and Grading
+
+Security Patterns Detected:
+  - Hardcoded credentials (passwords, API keys, tokens)
+  - SQL injection vulnerabilities
+  - XSS vulnerabilities
+  - Command injection risks
+  - Weak cryptography usage
+  - Debug information leaks
+  - Sensitive file exposure
+
+Output:
+  - Overall Security Score: /100
+  - Security Grade: A-F (Excellent to Critical)
+  - Component breakdowns with recommendations
+  - Prioritized remediation guidance
+
+Examples:
+  /claudia:security:scan
+
+
+14. TARGETED SECURITY AUDIT
+---------------------------
+Command: /claudia:security:audit
+Usage: /claudia:security:audit "target"
+Parameters:
+  - Target: PR number, file path, directory, or glob pattern
+
+Target Types:
+  - PR Audit: /claudia:security:audit "21" (audits PR #21 changes)
+  - File Audit: /claudia:security:audit "src/auth.js"
+  - Directory Audit: /claudia:security:audit "src/components/"
+  - Pattern Audit: /claudia:security:audit "*.env"
+
+Description: Targeted security audit with detailed vulnerability assessment,
+risk scoring, and specific recommendations for the selected scope.
+
+Examples:
+  /claudia:security:audit "30"                    # PR #30 audit
+  /claudia:security:audit "src/auth/"            # Directory audit
+  /claudia:security:audit "backend/src/models/"   # Models directory
+
+
+================================================================================
+                            TESTING SYSTEM COMMANDS
+================================================================================
+
+15. COMPREHENSIVE TEST EXECUTION
+--------------------------------
+Command: /claudia:test:run
+Usage: /claudia:test:run [test-args]
+Parameters:
+  - test-args [optional]: Additional arguments passed to test framework
+
+Description: Automatic test framework detection and execution with detailed
+reporting across multiple project types:
+
+Supported Frameworks:
+  - Node.js: Jest, Mocha, Vitest, Cypress
+  - Python: pytest, unittest
+  - Rust: cargo test, tarpaulin
+  - Go: go test
+  - Generic: common test patterns
+
+Features:
+  - Framework auto-detection
+  - Test execution with timeout protection
+  - Result parsing and metrics extraction
+  - Quality scoring and recommendations
+  - Detailed reporting and audit logging
+
+Examples:
+  /claudia:test:run
+  /claudia:test:run "--coverage"
+  /claudia:test:run "--verbose"
+
+
+16. TEST COVERAGE ANALYSIS
+--------------------------
+Command: /claudia:test:coverage
+Usage: /claudia:test:coverage [coverage-args]
+Parameters:
+  - coverage-args [optional]: Additional arguments for coverage tools
+
+Description: Generates detailed test coverage analysis with metrics,
+uncovered code identification, and improvement recommendations.
+
+Coverage Tools Supported:
+  - Node.js: Jest coverage, NYC, c8
+  - Python: coverage.py, pytest-cov
+  - Rust: tarpaulin, llvm-cov
+  - Go: built-in coverage tools
+
+Metrics Provided:
+  - Overall Coverage Percentage
+  - Line Coverage (covered/total)
+  - Function Coverage
+  - Branch Coverage
+  - Coverage Grade: A+ to F
+  - Quality Score: /100
+
+Output Features:
+  - Uncovered code identification
+  - Coverage quality assessment
+  - Improvement recommendations
+  - Coverage targets by file type
+  - Best practices guidance
+
+Examples:
+  /claudia:test:coverage
+  /claudia:test:coverage "--html"
+
+
+================================================================================
+                          ADDITIONAL WORKFLOW COMMANDS
+================================================================================
+
+17. PULL REQUEST MERGE (Owner Restricted)
+-----------------------------------------
+Command: /claudia:pr:merge
+Usage: /claudia:pr:merge "pr-number"
+Parameters:
+  - PR Number: Pull Request number
+
+Description: Merges Pull Request with repository owner authorization checks
+and comprehensive safety validations.
+
+Safety Checks:
+  - Repository owner/admin permission verification
+  - PR state validation (must be OPEN)
+  - Draft status check (cannot be draft)
+  - Merge conflict detection
+  - Review status warnings
+
+Features:
+  - User confirmation prompt
+  - Squash merge by default
+  - Automatic branch deletion
+  - Comprehensive logging
+  - Post-merge reporting
+
+Examples:
+  /claudia:pr:merge "30"
+  /claudia:pr:merge "21"
+
+
+18. PROJECT COMMITMENT (WITH INTERACTIVE BRANCH CREATION)
+---------------------------------------------------------
+Command: /claudia:commit
+Usage: /claudia:commit "issue-id" ["description"]
+Parameters:
+  - Issue ID: GitHub issue number (supports "21" or "030-issue-21" format)
+  - Description [optional]: Custom commit description (uses issue title if not provided)
+
+Description: Commits changes with full traceability to GitHub issues,
+interactive branch creation, conventional commit standards, and automated
+commit message generation.
+
+Features:
+  - Fetches issue details from GitHub automatically
+  - Interactive branch creation with 4 options:
+    1. Create from current branch
+    2. Create from main
+    3. Create from staging
+    4. Stay on current branch (if already created)
+  - Auto-generates branch name: feature/issue-{number}-{title}
+  - Auto-detects commit type from issue labels (feat, fix, docs, test, chore)
+  - Auto-detects scope from labels (frontend, backend, db, auth)
+  - Stages all changes automatically if nothing staged
+  - Updates ticket file in 5-tickets/ with commit info
+  - Logs to audit trail
+
+Examples:
+  /claudia:commit "21" "implement authentication system"
+  → Creates feature/issue-21-implement-authentication branch (if chosen)
+  → Commits with message: feat(auth): implement authentication system
+
+  /claudia:commit "030-issue-42" "add user validation"
+  → Accepts both issue-id formats
+  → Uses description as commit message
+
+  /claudia:commit "21"
+  → Uses issue title as commit message
+
+
+================================================================================
+                               UTILITY COMMANDS
+================================================================================
+
+19. SYSTEM STATUS CHECK
+-----------------------
+Command: /claudia:utils:status
+Usage: /claudia:utils:status
+Parameters: None
+
+Description: Comprehensive system health check and current work status.
+
+20. GENERATE REPORTS
+--------------------
+Command: /claudia:utils:report
+Usage: /claudia:utils:report
+Parameters: None
+
+Description: Generates comprehensive traceability and progress reports.
+
+
+================================================================================
+                                SHELL SCRIPTS
+================================================================================
+
+21. CREATE SPRINT DISCUSSION
+----------------------------
+Script: .github/scripts/create-new-discussion.sh
+Usage: ./.github/scripts/create-new-discussion.sh
+Interactive: Yes
+
+Description: Interactive script to create GitHub discussions with templates
+for sprint planning, feature discussions, and team collaboration.
+
+Features:
+  - Discussion category selection
+  - Template-based content generation
+  - Sprint-specific discussion creation
+  - Team notification integration
+
+Requirements:
+  - GitHub CLI (gh) installed and authenticated
+  - Repository discussion permissions
+  - Valid discussion categories
+
+
+22. CREATE NEW PROJECT WITH SPRINT NAME
+---------------------------------------
+Script: .github/scripts/setup-github-projects.sh
+Usage: ./.github/scripts/setup-github-projects.sh
+Interactive: Yes
+
+Description: Sets up GitHub Projects for sprint management with Claudia
+workflow integration.
+
+Features:
+  - Project creation with sprint naming
+  - Column setup (Backlog, In Progress, Review, Done)
+  - Integration with GitHub issues
+  - Sprint milestone creation
+  - Team permissions configuration
+
+Requirements:
+  - GitHub CLI with project scopes (project, read:project)
+  - Repository admin permissions
+  - Organization access (if applicable)
+
+Setup Command:
+  gh auth refresh -s project,read:project
+
+
+23. BRANCH PROTECTION TEST COMMAND
+----------------------------------
+Script: .github/scripts/test-branch-protection.sh
+Usage: ./.github/scripts/test-branch-protection.sh
+Interactive: No
+
+Description: Tests branch protection rules and demonstrates how they work
+across different branches (main, staging, dev).
+
+Features:
+  - Branch protection status verification
+  - Protection rule details display
+  - Compliance testing
+  - Security validation
+  - Detailed reporting
+
+Test Categories:
+  - Required status checks
+  - Required reviews
+  - Admin enforcement
+  - Force push restrictions
+  - Branch deletion protection
+
+Examples:
+  ./.github/scripts/test-branch-protection.sh
+  → Tests all protected branches and reports status
+
+
+================================================================================
+                            CLAUDIA WORKFLOW HIERARCHY
+================================================================================
+
+UUID SYSTEM (CRITICAL):
+  Sprint:       XXX        (e.g., 030, 031, 032)
+  Requirements: Embedded in sprint document (numbered: 1, 2, 3...)
+  Issues:       GitHub issue numbers (e.g., #21, #42)
+  Tickets:      XXX-issue-N (e.g., 030-issue-21, 030-issue-42)
+
+⚠️ NEW WORKFLOW - REQUIREMENTS EMBEDDED IN SPRINTS:
+
+  STEP 1: CREATE SPRINT WITH EMBEDDED REQUIREMENTS
+    /claudia:sprint:create "030" [--with-planning "path/to/planning.md"]
+    → Creates: .claude-shared/project-management/3-sprints/030.md
+    → Contains: Sprint goals + embedded requirements (no separate files)
+
+  STEP 2: EDIT REQUIREMENTS IN SPRINT DOCUMENT
+    → Open: .claude-shared/project-management/3-sprints/030.md
+    → Add/edit requirements directly in the sprint file
+    → Format: ### Requirement N: Title
+
+  STEP 3: CREATE GITHUB ISSUES FROM SPRINT
+    Option A - Single Issue:
+      /claudia:issues:create "030" --requirement 1
+      → Creates issue for Requirement 1
+
+    Option B - Multiple Issues:
+      /claudia:issues:multiple-create "030" [--skip "2"]
+      → Creates issues for ALL requirements (except skipped ones)
+
+    → Stores ticket copies in: .claude-shared/project-management/5-tickets/
+    → Updates sprint document with issue links
+
+  STEP 4: IMPLEMENT CHANGES (MANUAL)
+    → Review issue and plan implementation
+    → Make code changes
+    → No automatic PR creation
+
+  STEP 5: COMMIT CHANGES (INTERACTIVE BRANCH CREATION)
+    /claudia:commit "21" "implement authentication"
+    → Interactive: Choose to create branch from current/main/staging or stay
+    → Auto-generates branch: feature/issue-21-implement-authentication
+    → Creates commit with auto-generated message
+    → Updates ticket file with commit info
+
+    Multiple commits supported:
+    /claudia:commit "21" "add token validation"
+    /claudia:commit "21" "fix edge cases"
+    → All commits tracked on same branch
+
+  STEP 6: CREATE PULL REQUEST
+    /claudia:pr:create "21"
+    → Uses existing branch from commit workflow
+    → Pushes branch to remote
+    → Creates PR with ALL commit messages listed
+    → Links to ticket in 5-tickets/ folder
+
+  STEP 7: CODE REVIEW
+    /claudia:review:start "30"
+    /claudia:review:analyze "30"
+    /claudia:review:interactive "30"
+
+  STEP 8: MERGE PR
+    /claudia:pr:merge "30"
+
+QUALITY ASSURANCE WORKFLOW:
+  - Code Review: /claudia:review:start → /claudia:review:analyze → /claudia:review:interactive
+  - Security Check: /claudia:security:scan → /claudia:security:audit "pr-number"
+  - Testing: /claudia:test:run → /claudia:test:coverage
+  - Final Merge: /claudia:pr:merge "pr-number"
+
+KEY CHANGES FROM OLD WORKFLOW:
+  ❌ OLD: Separate 4-requirements/ files
+  ✅ NEW: Requirements embedded in sprint documents
+
+  ❌ OLD: /claudia:requirements:define command
+  ✅ NEW: Edit requirements directly in sprint .md file
+
+  ❌ OLD: Issues created from requirements files
+  ✅ NEW: Issues created from sprint documents
+
+  ❌ OLD: No local tracking of issues
+  ✅ NEW: All issues stored in 5-tickets/ folder
+
+  ❌ OLD: Automatic PR creation on issue creation
+  ✅ NEW: Manual implementation workflow (no automatic PRs)
+
+
+================================================================================
+                              SYSTEM SYNCHRONIZATION
+================================================================================
+
+BEFORE STARTING WORK:
+  1. git subtree pull --prefix=.claude-shared https://github.com/penomoprotocol/claude-shared.git main --squash
+  2. ./.claude-shared/scripts/sync-all.sh
+
+MULTI-BRANCH SYNC:
+  for branch in main staging dev; do
+    git checkout $branch
+    git subtree pull --prefix=.claude-shared https://github.com/penomoprotocol/claude-shared.git main --squash
+    ./.claude-shared/scripts/sync-all.sh
+    git add .claude/
+    git commit -m "sync: update Claudia system from claude-shared"
+  done
+
+
+================================================================================
+                               QUICK REFERENCE
+================================================================================
+
+ESSENTIAL COMMANDS FOR DAILY WORKFLOW:
+  Sprint Start:      /claudia:sprint:create "030" [--with-planning "planning.md"]
+  Edit Requirements: Open .claude-shared/project-management/3-sprints/030.md
+  Single Issue:      /claudia:issues:create "030" --requirement 1
+  Bulk Issues:       /claudia:issues:multiple-create "030" [--skip "2"]
+  List Issues:       /claudia:issues:pull
+  Commit Changes:    /claudia:commit "21" "description" (interactive branch creation)
+  Create PR:         /claudia:pr:create "21" (uses commits from branch)
+  List PRs:          /claudia:pr:pull
+  Code Review:       /claudia:review:start "30"
+  Security Scan:     /claudia:security:scan
+  Run Tests:         /claudia:test:run
+  Coverage:          /claudia:test:coverage
+  Merge PR:          /claudia:pr:merge "30"
+
+SHELL SCRIPTS:
+  Sprint Discussion:  ./.github/scripts/create-new-discussion.sh
+  Create Project:     ./.github/scripts/setup-github-projects.sh
+  Test Protection:    ./.github/scripts/test-branch-protection.sh
+
+SYSTEM MAINTENANCE:
+  Status Check:    /claudia:utils:status
+  Generate Report: /claudia:utils:report
+  Sync System:     ./.claude-shared/scripts/sync-all.sh
+
+================================================================================
+
+This comprehensive summary covers all Claudia commands and shell scripts for
+complete sprint management, development workflow automation, and quality
+assurance in the Blog-Tube project. All commands include full traceability,
+audit logging, and integration with GitHub's project management features.
+
+For detailed command documentation, refer to individual .md files in:
+.claude-shared/commands/claudia/
+
+================================================================================

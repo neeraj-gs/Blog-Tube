@@ -1,11 +1,11 @@
 ---
-description: "Create Pull Request from GitHub issue with automatic branch creation"
+description: "Create Pull Request from GitHub issue with commit history"
 allowed-tools: ["Read", "Write", "Edit", "Bash"]
 ---
 
 # 🚀 Create PR from GitHub Issue
 
-Creates a Pull Request automatically from a GitHub issue with branch creation and proper linking.
+Creates a Pull Request from an existing issue and branch with all commit history and proper linking.
 
 ## Processing PR Creation for Issue: $ARGUMENTS
 
@@ -43,11 +43,90 @@ fi
 echo "✅ GitHub CLI validated"
 '
 
+## Check Current Branch and Commits
+
+!bash -c '
+source /tmp/claudia_pr_context
+
+echo ""
+echo "📍 Checking current branch and commits..."
+
+CURRENT_BRANCH=$(git branch --show-current)
+echo "Current branch: $CURRENT_BRANCH"
+
+# Check if on correct branch for this issue
+if ! echo "$CURRENT_BRANCH" | grep -q "issue-${ISSUE_ID}"; then
+    echo "⚠️  Warning: Current branch name does not contain issue-${ISSUE_ID}"
+    echo "   Current: $CURRENT_BRANCH"
+    echo "   Expected pattern: feature/issue-${ISSUE_ID}-*"
+    echo ""
+    read -p "Continue anyway? (y/N): " CONTINUE
+    if [ "$CONTINUE" != "y" ] && [ "$CONTINUE" != "Y" ]; then
+        echo "❌ Aborted"
+        exit 1
+    fi
+fi
+
+# Check if there are commits
+COMMIT_COUNT=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "0")
+if [ "$COMMIT_COUNT" = "0" ]; then
+    echo "❌ ERROR: No commits found on this branch"
+    echo "   Please commit your changes first using: /claudia:commit \"$ISSUE_ID\" \"description\""
+    exit 1
+fi
+
+echo "✅ Found $COMMIT_COUNT commit(s) ready for PR"
+
+echo "CURRENT_BRANCH=$CURRENT_BRANCH" >> /tmp/claudia_pr_context
+echo "COMMIT_COUNT=$COMMIT_COUNT" >> /tmp/claudia_pr_context
+'
+
+## Push Branch if Needed
+
+!bash -c '
+source /tmp/claudia_pr_context
+
+echo ""
+echo "📤 Checking if branch needs to be pushed..."
+
+# Check if branch exists on remote
+if git ls-remote --heads origin "$CURRENT_BRANCH" | grep -q "$CURRENT_BRANCH"; then
+    echo "📍 Branch exists on remote"
+
+    # Check if local is ahead
+    LOCAL_COMMIT=$(git rev-parse HEAD)
+    REMOTE_COMMIT=$(git rev-parse origin/$CURRENT_BRANCH 2>/dev/null || echo "none")
+
+    if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
+        echo "📤 Pushing latest commits to remote..."
+        git push origin $CURRENT_BRANCH
+
+        if [ $? -ne 0 ]; then
+            echo "❌ Failed to push to remote"
+            exit 1
+        fi
+        echo "✅ Branch updated on remote"
+    else
+        echo "✅ Branch is up to date with remote"
+    fi
+else
+    echo "🆕 Branch not on remote, pushing..."
+    git push -u origin $CURRENT_BRANCH
+
+    if [ $? -ne 0 ]; then
+        echo "❌ Failed to push branch to remote"
+        exit 1
+    fi
+    echo "✅ Branch pushed to remote"
+fi
+'
+
 ## Fetch Issue Details
 
 !bash -c '
 source /tmp/claudia_pr_context
 
+echo ""
 echo "📥 Fetching issue #$ISSUE_ID details..."
 ISSUE_INFO=$(gh issue view $ISSUE_ID --json title,body,state,labels 2>/dev/null)
 
@@ -57,185 +136,186 @@ if [ $? -ne 0 ]; then
 fi
 
 ISSUE_TITLE=$(echo "$ISSUE_INFO" | jq -r ".title")
-ISSUE_BODY=$(echo "$ISSUE_INFO" | jq -r ".body")
+ISSUE_BODY=$(echo "$ISSUE_INFO" | jq -r ".body // \"No description provided\"")
 ISSUE_STATE=$(echo "$ISSUE_INFO" | jq -r ".state")
 
 echo "✅ Issue: $ISSUE_TITLE ($ISSUE_STATE)"
 
-echo "ISSUE_TITLE=$ISSUE_TITLE" >> /tmp/claudia_pr_context
-echo "ISSUE_BODY=$ISSUE_BODY" >> /tmp/claudia_pr_context
+echo "ISSUE_TITLE=\"$ISSUE_TITLE\"" >> /tmp/claudia_pr_context
+cat >> /tmp/claudia_pr_context << EOF
+ISSUE_BODY="$ISSUE_BODY"
+EOF
 echo "ISSUE_STATE=$ISSUE_STATE" >> /tmp/claudia_pr_context
 '
 
-## Generate Branch Name
+## Gather Commit Information
 
 !bash -c '
 source /tmp/claudia_pr_context
 
-BRANCH_NAME="feature/issue-$ISSUE_ID-$(echo "$ISSUE_TITLE" | tr "[:upper:]" "[:lower:]" | sed "s/[^a-z0-9]/-/g" | sed "s/--*/-/g" | sed "s/^-\|-$//g" | cut -c1-40)"
+echo ""
+echo "📝 Gathering commit information for PR description..."
 
-echo "🌿 Generated branch name: $BRANCH_NAME"
-echo "BRANCH_NAME=$BRANCH_NAME" >> /tmp/claudia_pr_context
-'
+# Get all commits on this branch (compared to main)
+COMMITS=$(git log origin/main..HEAD --pretty=format:"%h|%s|%an|%ar" 2>/dev/null)
 
-## Check Git Status
-
-!bash -c '
-source /tmp/claudia_pr_context
-
-if ! git diff --quiet || ! git diff --cached --quiet; then
-    echo "⚠️  You have uncommitted changes. Please commit them first:"
-    echo "   Run: /claudia:commit \"$ISSUE_ID\""
+if [ -z "$COMMITS" ]; then
+    echo "❌ ERROR: No commits found between main and current branch"
     exit 1
 fi
 
-echo "✅ Git status clean"
+# Format commits for PR body
+COMMIT_LIST=""
+while IFS="|" read -r hash subject author date; do
+    COMMIT_LIST="${COMMIT_LIST}- \`${hash}\` ${subject} (${author}, ${date})\n"
+done <<< "$COMMITS"
+
+# Get files changed
+FILES_CHANGED=$(git diff --name-status origin/main..HEAD | wc -l | tr -d " ")
+
+# Get line changes
+STATS=$(git diff --stat origin/main..HEAD | tail -1)
+
+echo "✅ Collected commit history: $COMMIT_COUNT commits, $FILES_CHANGED files changed"
+
+cat >> /tmp/claudia_pr_context << COMMITEOF
+COMMIT_LIST="$COMMIT_LIST"
+FILES_CHANGED="$FILES_CHANGED"
+STATS="$STATS"
+COMMITEOF
 '
 
-## Create Feature Branch
+## Create Pull Request with Commit Details
 
 !bash -c '
 source /tmp/claudia_pr_context
 
-echo "🌿 Creating feature branch: $BRANCH_NAME"
-
-if git show-ref --quiet refs/heads/$BRANCH_NAME; then
-    echo "📍 Branch exists, switching to it"
-    git checkout $BRANCH_NAME
-else
-    echo "🆕 Creating new branch"
-    git checkout -b $BRANCH_NAME
-fi
-
-if [ $? -eq 0 ]; then
-    echo "✅ Branch ready: $BRANCH_NAME"
-else
-    echo "❌ Failed to create/switch to branch"
-    exit 1
-fi
-'
-
-## Push Branch to Remote
-
-!bash -c '
-source /tmp/claudia_pr_context
-
-echo "📤 Pushing branch to remote..."
-git push -u origin $BRANCH_NAME
-
-if [ $? -eq 0 ]; then
-    echo "✅ Branch pushed to remote"
-else
-    echo "❌ Failed to push branch"
-    exit 1
-fi
-'
-
-## Create Pull Request
-
-!bash -c '
-source /tmp/claudia_pr_context
-
+echo ""
 echo "🚀 Creating Pull Request..."
 
-# Create comprehensive PR body with theme toggle implementation details
-PR_BODY="## 🎯 Overview
+# Check if PR already exists
+EXISTING_PR=$(gh pr list --head "$CURRENT_BRANCH" --json number --jq ".[0].number" 2>/dev/null)
 
-This PR implements: $ISSUE_TITLE
+if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
+    echo "⚠️  PR already exists for this branch: #$EXISTING_PR"
+    PR_URL=$(gh pr view $EXISTING_PR --json url --jq .url)
+    echo "🔗 Existing PR: $PR_URL"
+    echo "PR_URL=$PR_URL" >> /tmp/claudia_pr_context
+    echo "PR_NUMBER=$EXISTING_PR" >> /tmp/claudia_pr_context
+    exit 0
+fi
+
+# Create PR body with commit details
+cat > /tmp/pr_body.md << PREOF
+## 🎯 Overview
+
+This PR implements: **$ISSUE_TITLE**
 
 ## 📋 Issue Details
 - **Issue:** #$ISSUE_ID
-- **Status:** $ISSUE_STATE
-- **Branch:** \`$BRANCH_NAME\`
+- **Branch:** \`$CURRENT_BRANCH\`
+- **Commits:** $COMMIT_COUNT
+- **Files Changed:** $FILES_CHANGED
 
-## 🚀 Features Implemented
+## 📖 Issue Description
 
-### ✅ Core Components Added
-- **ThemeProvider Component** (\`frontend/components/theme-provider.tsx\`)
-  - Wraps application with next-themes provider
-  - System theme detection and persistence
-
-- **ThemeToggle Component** (\`frontend/components/theme-toggle.tsx\`)
-  - Interactive toggle with smooth animations
-  - Accessible keyboard navigation
-
-### ✅ Integration Points
-- **Root Layout** - ThemeProvider integration
-- **Dashboard Page** - Theme toggle in header
-- **Landing Page** - Theme toggle in header
-
-## 🛠️ Technical Implementation
-- System theme detection with prefers-color-scheme
-- Persistent localStorage theme storage
-- Smooth animations with Tailwind transitions
-- Full accessibility support
-
-## ✅ Requirements Fulfilled
-- Users can toggle between light/dark themes
-- Theme preference persists across sessions
-- Keyboard accessible navigation
-- System theme detection as default
-
-## 📊 Files Changed
-- \`frontend/components/theme-provider.tsx\` (New)
-- \`frontend/components/theme-toggle.tsx\` (New)
-- \`frontend/app/layout.tsx\` (Modified)
-- \`frontend/app/dashboard/page.tsx\` (Modified)
-- \`frontend/app/page.tsx\` (Modified)
-
-## 📖 Original Issue Description
 $ISSUE_BODY
 
-## ✅ Testing Checklist
-- [x] Light/dark theme switching works
-- [x] System theme detection verified
-- [x] Theme persistence across sessions
-- [x] Keyboard accessibility confirmed
-- [x] Mobile responsive design verified
-- [ ] Unit tests (follow-up)
-- [ ] E2E tests (follow-up)
+## 📝 Commits in this PR
+
+$COMMIT_LIST
+
+## 📊 Changes Summary
+
+\`\`\`
+$STATS
+\`\`\`
+
+## ✅ Checklist
+- [ ] Code reviewed and tested
+- [ ] Tests passing
+- [ ] Documentation updated (if needed)
+- [ ] Ready for review
 
 ---
-🤖 **Auto-generated from GitHub issue #$ISSUE_ID**
-**Generated with Claude Code**
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
-**Resolves #$ISSUE_ID**"
+**Resolves #$ISSUE_ID**
+PREOF
 
-# Write PR body to file for proper handling
-echo "$PR_BODY" > /tmp/pr_body_$ISSUE_ID.md
+# Create the PR
+PR_OUTPUT=$(gh pr create --title "$ISSUE_TITLE" --body-file /tmp/pr_body.md --head "$CURRENT_BRANCH" --base "main" 2>&1)
+PR_EXIT_CODE=$?
 
-# Create the actual PR
-echo "Executing: gh pr create --title \"$ISSUE_TITLE\" --body-file /tmp/pr_body_$ISSUE_ID.md --head \"$BRANCH_NAME\" --base \"main\""
-
-if gh pr create --title "$ISSUE_TITLE" --body-file "/tmp/pr_body_$ISSUE_ID.md" --head "$BRANCH_NAME" --base "main"; then
+if [ $PR_EXIT_CODE -eq 0 ]; then
     echo ""
     echo "✅ SUCCESS! Pull Request created"
 
-    # Get PR information
-    PR_INFO=$(gh pr view --json number,url,title 2>/dev/null)
-    if [ $? -eq 0 ]; then
-        PR_NUMBER=$(echo "$PR_INFO" | jq -r ".number")
-        PR_URL=$(echo "$PR_INFO" | jq -r ".url")
+    # Get PR number and URL
+    PR_NUMBER=$(echo "$PR_OUTPUT" | grep -o "pull/[0-9]*" | grep -o "[0-9]*" | head -1)
+    PR_URL=$(gh pr view $PR_NUMBER --json url --jq .url 2>/dev/null)
 
-        echo "📝 PR Number: #$PR_NUMBER"
-        echo "🔗 PR URL: $PR_URL"
-        echo "📝 Issue #$ISSUE_ID linked to PR"
-        echo "🌿 Branch: $BRANCH_NAME"
-
-        echo "PR_URL=$PR_URL" >> /tmp/claudia_pr_context
-        echo "PR_NUMBER=$PR_NUMBER" >> /tmp/claudia_pr_context
-    else
-        echo "⚠️  PR created but could not fetch details"
+    if [ -z "$PR_URL" ]; then
+        PR_URL=$(echo "$PR_OUTPUT" | grep -o "https://[^ ]*" | head -1)
     fi
 
-    # Cleanup temp file
-    rm -f "/tmp/pr_body_$ISSUE_ID.md"
+    echo "🔗 View PR: $PR_URL"
+    echo "📝 Issue #$ISSUE_ID linked to PR #$PR_NUMBER"
+    echo "🌿 Branch: $CURRENT_BRANCH"
+
+    echo "PR_URL=$PR_URL" >> /tmp/claudia_pr_context
+    echo "PR_NUMBER=$PR_NUMBER" >> /tmp/claudia_pr_context
 else
-    echo ""
     echo "❌ Failed to create PR"
-    echo "Please check GitHub CLI authentication and permissions"
-    rm -f "/tmp/pr_body_$ISSUE_ID.md"
+    echo "$PR_OUTPUT"
+    rm -f /tmp/pr_body.md
     exit 1
+fi
+
+rm -f /tmp/pr_body.md
+'
+
+## Update Ticket File
+
+!bash -c '
+source /tmp/claudia_pr_context
+
+echo ""
+echo "📝 Updating ticket file..."
+
+# Look for ticket file
+TICKET_FILE=$(find .claude-shared/project-management/5-tickets/ -name "*-issue-${ISSUE_ID}-*.md" 2>/dev/null | head -1)
+
+if [ -z "$TICKET_FILE" ]; then
+    echo "ℹ️  No local ticket file found (this is okay)"
+else
+    echo "📄 Found ticket: $TICKET_FILE"
+
+    # Update ticket with PR information
+    if grep -q "### Pull Request" "$TICKET_FILE"; then
+        # Update existing PR section
+        sed -i "" "s|### Pull Request.*|### Pull Request\n- PR #$PR_NUMBER: $PR_URL|" "$TICKET_FILE"
+    else
+        # Add PR section to implementation tracking
+        if grep -q "## Implementation Tracking" "$TICKET_FILE"; then
+            sed -i "" "/## Implementation Tracking/a\\
+\\
+### Pull Request\\
+- PR #$PR_NUMBER: $PR_URL
+" "$TICKET_FILE"
+        else
+            cat >> "$TICKET_FILE" << EOF
+
+## Implementation Tracking
+
+### Pull Request
+- PR #$PR_NUMBER: $PR_URL
+
+EOF
+        fi
+    fi
+
+    echo "✅ Updated ticket file with PR information"
 fi
 '
 
@@ -244,15 +324,17 @@ fi
 !bash -c '
 source /tmp/claudia_pr_context
 
-echo "📊 Logging PR creation..."
-mkdir -p .claude-shared/project-management/data
+if [ -n "$PR_NUMBER" ]; then
+    echo "📊 Logging PR creation..."
+    mkdir -p .claude-shared/project-management/data
 
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-LOG_ENTRY="{\"timestamp\":\"$TIMESTAMP\",\"action\":\"pr_created\",\"issue_id\":$ISSUE_ID,\"branch\":\"$BRANCH_NAME\",\"title\":\"$ISSUE_TITLE\",\"pr_url\":\"$PR_URL\"}"
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    LOG_ENTRY="{\"timestamp\":\"$TIMESTAMP\",\"action\":\"pr_created\",\"issue_id\":$ISSUE_ID,\"pr_number\":$PR_NUMBER,\"branch\":\"$CURRENT_BRANCH\",\"title\":\"$ISSUE_TITLE\",\"commits\":$COMMIT_COUNT,\"files_changed\":$FILES_CHANGED,\"pr_url\":\"$PR_URL\"}"
 
-echo "$LOG_ENTRY" >> .claude-shared/project-management/data/github-sync.jsonl
+    echo "$LOG_ENTRY" >> .claude-shared/project-management/data/github-sync.jsonl
 
-echo "✅ PR creation logged to audit trail"
+    echo "✅ PR creation logged to audit trail"
+fi
 '
 
 ## Summary
@@ -261,21 +343,27 @@ echo "✅ PR creation logged to audit trail"
 source /tmp/claudia_pr_context
 
 echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "✨ PULL REQUEST CREATION COMPLETE"
-echo "================================="
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "📋 Summary:"
-echo "   ✅ Issue #$ISSUE_ID processed"
-echo "   ✅ Branch $BRANCH_NAME created"
-echo "   ✅ Pull request created successfully"
-echo "   ✅ Issue linked with Resolves #$ISSUE_ID"
+echo "   ✅ Issue: #$ISSUE_ID - $ISSUE_TITLE"
+echo "   ✅ Branch: $CURRENT_BRANCH"
+echo "   ✅ Pull Request: #$PR_NUMBER"
+echo "   ✅ Commits included: $COMMIT_COUNT"
+echo "   ✅ Files changed: $FILES_CHANGED"
 echo "   ✅ Audit trail updated"
 echo ""
-echo "🔗 Next steps:"
-echo "   1. Review PR: $PR_URL"
-echo "   2. Update PR description if needed"
-echo "   3. Request reviews"
-echo "   4. Merge when ready"
+echo "🔗 PR URL: $PR_URL"
+echo ""
+echo "📋 Next steps:"
+echo "   1. Review PR description and commits"
+echo "   2. Request code review: gh pr review $PR_NUMBER --request @reviewer"
+echo "   3. Wait for CI/CD checks to pass"
+echo "   4. Merge PR: /claudia:pr:merge \"$PR_NUMBER\""
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 rm -f /tmp/claudia_pr_context
 '
