@@ -50,7 +50,7 @@ The application currently lacks a theme system infrastructure. Users cannot swit
 - [`c937229`] feat(frontend): implement core theme system setup (2025-10-06 16:15:30)
 
 ### Pull Requests
-*Will be populated when PRs are created using /claudia:pr:create*
+- PR #61: https://github.com/neeraj-gs/Blog-Tube/pull/61
 
 ### Status Updates
 - **2025-10-06**: Issue #57 created from sprint requirement

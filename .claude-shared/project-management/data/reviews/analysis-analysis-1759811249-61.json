@@ -1,0 +1,38 @@
+{
+  "analysis_id": "analysis-1759811249-61",
+  "pr_number": 61,
+  "pr_title": "Core Theme System Setup",
+  "pr_author": "neeraj-gs",
+  "analyzer": "neeraj-gs",
+  "timestamp": "2025-10-07T04:27:45Z",
+  "pr_url": "https://github.com/neeraj-gs/Blog-Tube/pull/61",
+  "file_analysis": {
+    "total_files": 118,
+    "js_ts_files": 10,
+    "style_files": 0,
+    "test_files": 0,
+    "config_files": 20,
+    "markdown_files": 54,
+    "package_files": 2
+  },
+  "security_analysis": {
+    "score": 60,
+    "issues": "Potential hardcoded credentials",
+    "warnings": ""
+  },
+  "quality_analysis": {
+    "score": 90,
+    "issues": "",
+    "suggestions": "5 TODO/FIXME comments",
+    "todo_count": 5
+  },
+  "test_analysis": {
+    "score": 20,
+    "test_ratio": 0,
+    "feedback": "No test files found"
+  },
+  "overall_assessment": {
+    "score": 60,
+    "risk_level": "HIGH"
+  }
+}
